@@ -4,6 +4,7 @@
 #include <deque>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 
@@ -11,6 +12,7 @@
 #include "job.hpp"
 #include "planner.hpp"
 #include "proculus/netutil/ipset.hpp"
+#include "proculus/results/results.hpp"
 #include "proculus/timing/rate.hpp"
 
 namespace proculus {
@@ -271,6 +273,10 @@ std::vector<RoundReport> run_demo(const DemoConfig& cfg, std::ostream& out) {
 	sched.min_start_remaining = Seconds(10);
 	validate(sched);
 
+	std::unique_ptr<ResultStore> store;
+	if (!cfg.store_dir.empty())
+		store = std::make_unique<FileResultStore>(cfg.store_dir);
+
 	SimNetwork net = SimNetwork::generate(cfg.seed, cfg.networks, cfg.density);
 	SimBackend backend(net, cfg.speed);
 
@@ -351,12 +357,14 @@ std::vector<RoundReport> run_demo(const DemoConfig& cfg, std::ostream& out) {
 			" addresses/s per worker)");
 
 		std::vector<uint32_t> live;
+		std::map<uint32_t, std::string> names;
 		r.execute(Stage::Discovery, discovery_plan.chunks, discovery_rate,
 			[&](const NmapResult& res) {
 				for (const HostResult& h : res.hosts) {
 					uint32_t ip;
-					if (pc_ip_parse(h.address.c_str(), &ip) == 0)
-						live.push_back(ip);
+					if (pc_ip_parse(h.address.c_str(), &ip) != 0) continue;
+					live.push_back(ip);
+					if (!h.hostnames.empty()) names[ip] = h.hostnames[0];
 				}
 			});
 		std::sort(live.begin(), live.end());
@@ -366,7 +374,12 @@ std::vector<RoundReport> run_demo(const DemoConfig& cfg, std::ostream& out) {
 			" addresses/s per worker");
 
 		// --- stage 2: what runs on the hosts that answered?
-		Snapshot snapshot;
+		std::map<uint32_t, HostRecord> records; // everything learned this round
+		for (uint32_t ip : live) {
+			// hosts that answered but expose nothing are still hosts
+			records[ip].ip = ip_text(ip);
+			records[ip].hostname = names[ip];
+		}
 		if (!live.empty()) {
 			std::string live_lines;
 			for (uint32_t ip : live)
@@ -385,17 +398,29 @@ std::vector<RoundReport> run_demo(const DemoConfig& cfg, std::ostream& out) {
 					for (const HostResult& h : res.hosts) {
 						uint32_t ip;
 						if (pc_ip_parse(h.address.c_str(), &ip) != 0) continue;
-						auto& ports = snapshot.hosts[ip];
-						for (const PortResult& p : h.ports)
-							ports[p.port] = p.service.product +
-								(p.service.version.empty()
-										? ""
-										: " " + p.service.version);
+						HostRecord& rec = records[ip];
+						for (const PortResult& p : h.ports) {
+							ServiceRecord sv;
+							sv.port = p.port;
+							sv.protocol = p.protocol;
+							sv.state = p.state;
+							sv.name = p.service.name;
+							sv.product = p.service.product;
+							sv.version = p.service.version;
+							sv.extrainfo = p.service.extrainfo;
+							sv.confidence = p.service.confidence;
+							rec.services.push_back(std::move(sv));
+						}
 					}
 				});
-			// hosts that answered but exposed nothing still count as hosts
-			for (uint32_t ip : live)
-				snapshot.hosts[ip];
+		}
+
+		Snapshot snapshot;
+		for (const auto& [ip, rec] : records) {
+			auto& ports = snapshot.hosts[ip];
+			for (const ServiceRecord& sv : rec.services)
+				ports[sv.port] =
+					sv.product + (sv.version.empty() ? "" : " " + sv.version);
 		}
 
 		// --- what changed?
@@ -432,6 +457,22 @@ std::vector<RoundReport> run_demo(const DemoConfig& cfg, std::ostream& out) {
 			std::to_string(rep.existing_hosts) +
 			" existing hosts (flapping hosts can miss a round), " +
 			std::to_string(rep.services_found) + " open services");
+
+		if (store) {
+			RunRecord run;
+			run.source = "sim";
+			run.started = format_time(rep.started);
+			run.finished = format_time(rep.finished);
+			run.addresses_scanned = rep.addresses;
+			run.chunks = rep.chunks;
+			run.pauses = rep.pauses;
+			run.cancelled_chunks = rep.cancelled_chunks;
+			for (auto& kv : records)
+				run.hosts.push_back(std::move(kv.second));
+			rep.run_id = store->save(std::move(run));
+			r.say("  saved as run " + std::to_string(rep.run_id) + " in " +
+				cfg.store_dir);
+		}
 
 		reports.push_back(rep);
 		previous = std::move(snapshot);
