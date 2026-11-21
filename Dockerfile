@@ -5,7 +5,7 @@
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build pkg-config \
-        libexpat1-dev libpq-dev libsodium-dev nlohmann-json3-dev \
+        libexpat1-dev libpq-dev libsodium-dev nlohmann-json3-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
