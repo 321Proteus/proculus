@@ -1,0 +1,10 @@
+add_library(proculus_netutil STATIC src/cidr.c src/range.c src/ipset.c src/portset.c src/target.c)
+target_include_directories(proculus_netutil PUBLIC include)
+
+if(BUILD_TESTING)
+	foreach(t cidr ipset portset target)
+		add_executable(test_${t} tests/test_${t}.c)
+		target_link_libraries(test_${t} PRIVATE proculus_netutil)
+		add_test(NAME ${t} COMMAND test_${t})
+	endforeach()
+endif()
