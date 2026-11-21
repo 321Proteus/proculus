@@ -3,6 +3,7 @@
 // against an emulated network.
 #include <getopt.h>
 
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -10,7 +11,17 @@
 #include "demo.hpp"
 #include "proculus/version.h"
 
-enum { OPT_SEED = 256, OPT_ROUNDS, OPT_WORKERS, OPT_NETWORKS, OPT_DENSITY, OPT_WINDOW, OPT_START, OPT_HELP };
+enum {
+	OPT_SEED = 256,
+	OPT_ROUNDS,
+	OPT_WORKERS,
+	OPT_NETWORKS,
+	OPT_DENSITY,
+	OPT_WINDOW,
+	OPT_START,
+	OPT_STORE,
+	OPT_HELP
+};
 
 static const option long_opts[] = {
 	{ "seed", required_argument, nullptr, OPT_SEED },
@@ -20,22 +31,29 @@ static const option long_opts[] = {
 	{ "density", required_argument, nullptr, OPT_DENSITY },
 	{ "window", required_argument, nullptr, OPT_WINDOW },
 	{ "start", required_argument, nullptr, OPT_START },
+	{ "store", required_argument, nullptr, OPT_STORE },
 	{ "help", no_argument, nullptr, OPT_HELP },
 	{ nullptr, 0, nullptr, 0 },
 };
 
 static void usage(const char* argv0) {
-	std::cerr
-		<< "usage: " << argv0 << " [options]\n"
-		<< "Runs the scan pipeline against an emulated network (virtual time).\n"
-		<< "  --rounds N       scan rounds to run (default 3)\n"
-		<< "  --workers N      parallel scan workers (default 3)\n"
-		<< "  --window W       scan window, e.g. 22:00-06:00 (default 22:00-22:03,\n"
-		<< "                   deliberately too short, to show pause and resume)\n"
-		<< "  --start TIME     virtual start, e.g. 2026-11-21T21:00:00Z\n"
-		<< "  --networks LIST  address ranges of the emulated network\n"
-		<< "  --density D      fraction of addresses that are hosts (default 0.03)\n"
-		<< "  --seed N         same seed, same network (default 42)\n";
+	std::cerr << "usage: " << argv0 << " [options]\n"
+			  << "Runs the scan pipeline against an emulated network (virtual "
+				 "time).\n"
+			  << "  --rounds N       scan rounds to run (default 3)\n"
+			  << "  --workers N      parallel scan workers (default 3)\n"
+			  << "  --window W       scan window, e.g. 22:00-06:00 (default "
+				 "22:00-22:03,\n"
+			  << "                   deliberately too short, to show pause and "
+				 "resume)\n"
+			  << "  --start TIME     virtual start, e.g. 2026-11-21T21:00:00Z\n"
+			  << "  --networks LIST  address ranges of the emulated network\n"
+			  << "  --density D      fraction of addresses that are hosts "
+				 "(default 0.03)\n"
+			  << "  --store DIR      save every round as a run in DIR (read it "
+				 "with exporter);\n"
+			  << "                   default: $PROCULUS_STORE_DIR if set\n"
+			  << "  --seed N         same seed, same network (default 42)\n";
 }
 
 static double to_double(const char* s, const char* what) {
@@ -45,7 +63,8 @@ static double to_double(const char* s, const char* what) {
 		if (s[pos] != '\0') throw std::invalid_argument("");
 		return v;
 	} catch (const std::exception&) {
-		throw std::invalid_argument(std::string("invalid number for ") + what + ": " + s);
+		throw std::invalid_argument(
+			std::string("invalid number for ") + what + ": " + s);
 	}
 }
 
@@ -56,18 +75,35 @@ int main(int argc, char** argv) {
 		int opt;
 		while ((opt = getopt_long(argc, argv, "", long_opts, nullptr)) != -1) {
 			switch (opt) {
-			case OPT_SEED: cfg.seed = static_cast<uint64_t>(to_double(optarg, "--seed")); break;
-			case OPT_ROUNDS: cfg.rounds = static_cast<int>(to_double(optarg, "--rounds")); break;
-			case OPT_WORKERS: cfg.workers = static_cast<unsigned>(to_double(optarg, "--workers")); break;
+			case OPT_SEED:
+				cfg.seed = static_cast<uint64_t>(to_double(optarg, "--seed"));
+				break;
+			case OPT_ROUNDS:
+				cfg.rounds = static_cast<int>(to_double(optarg, "--rounds"));
+				break;
+			case OPT_WORKERS:
+				cfg.workers =
+					static_cast<unsigned>(to_double(optarg, "--workers"));
+				break;
 			case OPT_NETWORKS: cfg.networks = optarg; break;
-			case OPT_DENSITY: cfg.density = to_double(optarg, "--density"); break;
+			case OPT_DENSITY:
+				cfg.density = to_double(optarg, "--density");
+				break;
 			case OPT_WINDOW: cfg.window = optarg; break;
-			case OPT_START: cfg.start = optarg; break;
-			case OPT_HELP: usage(argv[0]); return 0;
-			default: throw std::invalid_argument(std::string("bad option: ") + argv[optind - 1]);
+			case OPT_START:	 cfg.start = optarg; break;
+			case OPT_STORE:	 cfg.store_dir = optarg; break;
+			case OPT_HELP:	 usage(argv[0]); return 0;
+			default:
+				throw std::invalid_argument(
+					std::string("bad option: ") + argv[optind - 1]);
 			}
 		}
-		if (optind < argc) throw std::invalid_argument(std::string("unexpected argument: ") + argv[optind]);
+		if (optind < argc)
+			throw std::invalid_argument(
+				std::string("unexpected argument: ") + argv[optind]);
+		if (cfg.store_dir.empty())
+			if (const char* env = std::getenv("PROCULUS_STORE_DIR"))
+				cfg.store_dir = env;
 
 		std::cout << "proculus gateway v" << proculus_version() << "\n\n";
 		proculus::run_demo(cfg, std::cout);

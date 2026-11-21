@@ -8,7 +8,7 @@ add_library(scanner_core STATIC
 	src/job.cpp
 	src/result_json.cpp)
 target_include_directories(scanner_core PUBLIC src)
-target_link_libraries(scanner_core PUBLIC proculus_netutil EXPAT::EXPAT)
+target_link_libraries(scanner_core PUBLIC proculus_netutil EXPAT::EXPAT nlohmann_json::nlohmann_json)
 
 add_executable(scan-worker src/main.cpp)
 target_link_libraries(scan-worker PRIVATE scanner_core)

@@ -3,6 +3,18 @@ services:
     build:
       context: .
       target: gateway
+    environment:
+      PROCULUS_STORE_DIR: /data # saved runs go to the shared results volume
+    volumes:
+      - results:/data
+
+  exporter:
+    build:
+      context: .
+      target: exporter
+    volumes:
+      - results:/data:ro
+    profiles: ["tools"]
 
   postgres:
     image: postgres:16-alpine
@@ -52,3 +64,4 @@ services:
 
 volumes:
   pgdata:
+  results:

@@ -15,11 +15,15 @@ include(CTest)
 
 option(PROCULUS_REQUIRE_DB "Fail if libpq/libsodium are missing instead of skipping libs/db" OFF)
 
+find_package(nlohmann_json 3.11 REQUIRED)
+
 add_subdirectory(libs/common)
 add_subdirectory(libs/netutil)
 add_subdirectory(libs/db)
 add_subdirectory(libs/timing)
+add_subdirectory(libs/results)
 add_subdirectory(services/gateway)
 add_subdirectory(services/planner)
 add_subdirectory(services/scan-worker)
 add_subdirectory(services/scheduler)
+add_subdirectory(services/exporter)

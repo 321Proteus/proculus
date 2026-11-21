@@ -5,7 +5,7 @@
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build pkg-config \
-        libexpat1-dev libpq-dev libsodium-dev \
+        libexpat1-dev libpq-dev libsodium-dev nlohmann-json3-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
@@ -21,7 +21,8 @@ FROM build AS integration
 CMD ["ctest", "--test-dir", "build", "--output-on-failure"]
 
 FROM debian:bookworm-slim AS runtime-base
-RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus \
+    && mkdir /data && chown proculus:proculus /data
 
 FROM runtime-base AS gateway
 RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 \
@@ -34,6 +35,11 @@ FROM runtime-base AS planner
 COPY --from=build /src/build/services/planner/planner /usr/local/bin/planner
 USER proculus
 ENTRYPOINT ["planner"]
+
+FROM runtime-base AS exporter
+COPY --from=build /src/build/services/exporter/exporter /usr/local/bin/exporter
+USER proculus
+ENTRYPOINT ["exporter"]
 
 FROM runtime-base AS scheduler
 COPY --from=build /src/build/services/scheduler/scheduler /usr/local/bin/scheduler
