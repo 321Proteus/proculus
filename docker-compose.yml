@@ -2,4 +2,16 @@ services:
   gateway:
     build:
       context: .
-      dockerfile: services/gateway/Dockerfile
+      target: gateway
+
+  planner:
+    build:
+      context: .
+      target: planner
+    profiles: ["tools"]
+
+  scan-worker:
+    build:
+      context: .
+      target: scan-worker
+    profiles: ["tools"]

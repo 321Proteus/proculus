@@ -1,0 +1,8 @@
+# Keep host build output (different OS/toolchain) out of the image context.
+build/
+.cache/
+.git/
+.vscode/
+.clangd
+compile_commands.json
+*.pdf

@@ -1,0 +1,35 @@
+# One Dockerfile for every service: a shared build stage plus a small runtime
+# stage per service. Build one with e.g. `docker build --target scan-worker .`
+# Run the test suite with `docker build --target test .`
+
+FROM debian:bookworm-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build libexpat1-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build
+
+FROM build AS test
+RUN ctest --test-dir build --output-on-failure
+
+FROM debian:bookworm-slim AS runtime-base
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus
+
+FROM runtime-base AS gateway
+COPY --from=build /src/build/services/gateway/gateway /usr/local/bin/gateway
+USER proculus
+ENTRYPOINT ["gateway"]
+
+FROM runtime-base AS planner
+COPY --from=build /src/build/services/planner/planner /usr/local/bin/planner
+USER proculus
+ENTRYPOINT ["planner"]
+
+FROM runtime-base AS scan-worker
+RUN apt-get update && apt-get install -y --no-install-recommends nmap libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/build/services/scan-worker/scan-worker /usr/local/bin/scan-worker
+USER proculus
+ENTRYPOINT ["scan-worker"]
