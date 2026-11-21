@@ -33,6 +33,11 @@ COPY --from=build /src/build/services/planner/planner /usr/local/bin/planner
 USER proculus
 ENTRYPOINT ["planner"]
 
+FROM runtime-base AS scheduler
+COPY --from=build /src/build/services/scheduler/scheduler /usr/local/bin/scheduler
+USER proculus
+ENTRYPOINT ["scheduler"]
+
 FROM runtime-base AS scan-worker
 RUN apt-get update && apt-get install -y --no-install-recommends nmap libexpat1 \
     && rm -rf /var/lib/apt/lists/*
