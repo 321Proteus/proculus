@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "backend.hpp"
 #include "job.hpp"
 #include "nmap_xml.hpp"
 #include "process.hpp"
@@ -162,26 +163,13 @@ int main(int argc, char** argv) {
 		std::cerr << "\n";
 		if (dry_run) return 0;
 
-		RunOptions ro;
-		ro.timeout = std::chrono::seconds(cmd.timeout_s);
-		RunResult rr = run_process(cmd.argv, ro);
-
-		if (rr.timed_out) {
-			std::cerr << "error: nmap exceeded the " << cmd.timeout_s
-					  << " s limit and was stopped\n";
-			return 3;
-		}
-		if (rr.exit_code != 0) {
-			std::cerr << "error: nmap failed (exit " << rr.exit_code
-					  << ", signal " << rr.term_signal << "): " << rr.err;
-			return 3;
-		}
-		if (rr.output_truncated) {
-			std::cerr << "error: nmap output exceeded the size limit\n";
-			return 3;
-		}
-		std::cout << to_json(parse_nmap_xml(rr.out));
+		NmapBackend backend;
+		NmapResult result = backend.run(cmd, job);
+		std::cout << to_json(result);
 		return 0;
+	} catch (const ScanFailed& e) {
+		std::cerr << "error: " << e.what() << "\n";
+		return 3;
 	} catch (const JobRejected& e) {
 		std::cerr << "rejected: " << e.what() << "\n";
 		return 4;

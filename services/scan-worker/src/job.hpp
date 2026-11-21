@@ -46,6 +46,10 @@ struct JobRejected : std::runtime_error {
 
 struct NmapCommand {
 	std::vector<std::string> argv; // argv[0] is the nmap binary
+	// The validated target and port lists the command line was built from
+	// (comma-separated CIDRs / port ranges). Backends other than nmap use these.
+	std::string targets;
+	std::string ports; // Services stage only
 	uint64_t target_count = 0; // addresses that will be scanned
 	uint64_t reserved_stripped = 0; // addresses dropped for being reserved
 	int timeout_s = 0; // effective wall-clock limit
