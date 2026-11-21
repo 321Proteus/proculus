@@ -1,5 +1,6 @@
 #undef NDEBUG
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "proculus/ipset.h"
@@ -125,11 +126,116 @@ static void test_slice(void) {
 	pc_ipset_free(&s);
 }
 
+static void expect_format(pc_ipset* s, char sep, const char* want) {
+	char* got = pc_ipset_format(s, sep);
+	assert(got && strcmp(got, want) == 0);
+	free(got);
+}
+
+static void test_cidr_decomposition(void) {
+	pc_cidr out[PC_RANGE_MAX_CIDRS];
+	pc_range r;
+
+	assert(pc_range_parse("10.0.0.0/24", &r) == 0);
+	assert(pc_range_to_cidrs(&r, out, PC_RANGE_MAX_CIDRS) == 1 &&
+		out[0].prefix == 24);
+
+	/* unaligned: .1-.6 -> /32, /31, /30(.4-.7 too big) ... check by sum */
+	assert(pc_range_parse("10.0.0.1-6", &r) == 0);
+	int n = pc_range_to_cidrs(&r, out, PC_RANGE_MAX_CIDRS);
+	assert(n == 4); /* .1/32 .2/31 .4/31 .6/32 */
+	uint64_t total = 0;
+	for (int i = 0; i < n; i++)
+		total += pc_cidr_count(&out[i]);
+	assert(total == 6);
+
+	/* whole space and worst case */
+	r = (pc_range){ 0, 0xffffffffu };
+	assert(pc_range_to_cidrs(&r, out, PC_RANGE_MAX_CIDRS) == 1 &&
+		out[0].prefix == 0);
+	r = (pc_range){ 1, 0xfffffffeu };
+	n = pc_range_to_cidrs(&r, out, PC_RANGE_MAX_CIDRS);
+	assert(n == 62);
+	total = 0;
+	for (int i = 0; i < n; i++)
+		total += pc_cidr_count(&out[i]);
+	assert(total == 4294967294ULL);
+	assert(pc_range_to_cidrs(&r, out, 10) == -1); /* cap too small */
+
+	// top of space
+	r = (pc_range){ 0xffffffffu, 0xffffffffu };
+	assert(pc_range_to_cidrs(&r, out, PC_RANGE_MAX_CIDRS) == 1 &&
+		out[0].prefix == 32);
+}
+
+static void test_list_and_format(void) {
+	pc_ipset s;
+	pc_ipset_init(&s);
+	assert(pc_ipset_add_list(
+			   &s, "10.0.0.0/24, 10.0.1.1-3\n8.8.8.8\t10.0.0.5") == 0);
+	expect_format(&s, ',', "8.8.8.8,10.0.0.0/24,10.0.1.1,10.0.1.2/31");
+	expect_format(&s, '\n', "8.8.8.8\n10.0.0.0/24\n10.0.1.1\n10.0.1.2/31");
+
+	// round trip
+	char* text = pc_ipset_format(&s, ' ');
+	pc_ipset t;
+	pc_ipset_init(&t);
+	assert(pc_ipset_add_list(&t, text) == 0);
+	assert(pc_ipset_count(&t) == pc_ipset_count(&s));
+	assert(pc_ipset_count(&t) == 1 + 256 + 3);
+	free(text);
+	pc_ipset_free(&t);
+
+	// all or nothig
+	uint64_t before = pc_ipset_count(&s);
+	assert(pc_ipset_add_list(&s, "1.1.1.1, 2.2.2.2, nope") == -1);
+	assert(pc_ipset_count(&s) == before);
+	assert(!pc_ipset_contains(&s, ip("1.1.1.1")));
+	assert(pc_ipset_add_list(&s, "") == 0);
+	pc_ipset_free(&s);
+
+	pc_ipset empty;
+	pc_ipset_init(&empty);
+	expect_format(&empty, ',', "");
+}
+
+static void test_reserved(void) {
+	assert(pc_ip_is_reserved(ip("0.1.2.3")));
+	assert(pc_ip_is_reserved(ip("127.0.0.1")));
+	assert(pc_ip_is_reserved(ip("169.254.10.10")));
+	assert(pc_ip_is_reserved(ip("224.0.0.1")));
+	assert(pc_ip_is_reserved(ip("240.0.0.1")));
+	assert(pc_ip_is_reserved(ip("255.255.255.255")));
+	assert(!pc_ip_is_reserved(ip("10.0.0.1")));
+	assert(!pc_ip_is_reserved(ip("192.168.1.1")));
+	assert(!pc_ip_is_reserved(ip("169.253.0.1")));
+	assert(!pc_ip_is_reserved(ip("223.255.255.255")));
+	assert(!pc_ip_is_reserved(ip("126.255.255.255")));
+
+	pc_ipset s;
+	pc_ipset_init(&s);
+	assert(pc_ipset_add_spec(&s, "0.0.0.0/0") == 0);
+	assert(pc_ipset_subtract_reserved(&s) == 0);
+	/* 2^32 - 2^24 (0/8) - 2^24 (127/8) - 2^16 (169.254/16) - 2^28 (224/4) -
+	 * 2^28 (240/4) */
+	assert(pc_ipset_count(&s) ==
+		4294967296ULL - 16777216 - 16777216 - 65536 - 268435456 * 2);
+	/* the set must agree with pc_ip_is_reserved on a sample of addresses */
+	for (uint64_t a = 0; a < 4294967296ULL; a += 65537) {
+		assert(pc_ipset_contains(&s, (uint32_t)a) ==
+			!pc_ip_is_reserved((uint32_t)a));
+	}
+	pc_ipset_free(&s);
+}
+
 int main(void) {
 	test_range_parse();
 	test_merge();
 	test_top_of_space();
 	test_subtract();
 	test_slice();
+	test_cidr_decomposition();
+	test_list_and_format();
+	test_reserved();
 	return 0;
 }
