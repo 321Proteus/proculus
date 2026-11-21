@@ -122,7 +122,9 @@ NmapCommand build_command(
 		}
 	}
 
-	for (const auto& t : split(targets.format(','), ','))
+	cmd.targets = targets.format(',');
+	cmd.ports = port_arg;
+	for (const auto& t : split(cmd.targets, ','))
 		a.push_back(t);
 	return cmd;
 }
