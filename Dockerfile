@@ -24,6 +24,8 @@ FROM debian:bookworm-slim AS runtime-base
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus
 
 FROM runtime-base AS gateway
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/services/gateway/gateway /usr/local/bin/gateway
 USER proculus
 ENTRYPOINT ["gateway"]
