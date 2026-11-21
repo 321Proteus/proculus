@@ -41,6 +41,11 @@ COPY --from=build /src/build/services/exporter/exporter /usr/local/bin/exporter
 USER proculus
 ENTRYPOINT ["exporter"]
 
+FROM runtime-base AS differ
+COPY --from=build /src/build/services/differ/differ /usr/local/bin/differ
+USER proculus
+ENTRYPOINT ["differ"]
+
 FROM runtime-base AS scheduler
 COPY --from=build /src/build/services/scheduler/scheduler /usr/local/bin/scheduler
 USER proculus

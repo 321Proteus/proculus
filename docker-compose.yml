@@ -37,6 +37,17 @@ services:
       target: planner
     profiles: ["tools"]
 
+  # Compares and follows saved runs:
+  #   docker compose run --rm differ --store /data diff previous latest
+  #   docker compose run --rm differ --store /data track
+  differ:
+    build:
+      context: .
+      target: differ
+    volumes:
+      - results:/data:ro
+    profiles: ["tools"]
+
   scheduler:
     build:
       context: .
