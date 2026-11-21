@@ -11,5 +11,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
+include(CTest)
+
 add_subdirectory(libs/common)
+add_subdirectory(libs/netutil)
 add_subdirectory(services/gateway)
