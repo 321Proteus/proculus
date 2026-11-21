@@ -1,10 +1,13 @@
 find_package(OpenSSL REQUIRED)
 
-add_library(prober_core STATIC src/analyze.cpp src/tls_cert.cpp src/socket_transport.cpp src/prober.cpp)
+add_library(prober_core STATIC src/analyze.cpp src/tls_cert.cpp src/socket_transport.cpp src/prober.cpp src/report.cpp)
 target_include_directories(prober_core PUBLIC src)
-target_link_libraries(prober_core PUBLIC proculus_netutil OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(prober_core PUBLIC proculus_netutil nlohmann_json::nlohmann_json OpenSSL::SSL OpenSSL::Crypto)
 find_package(Threads REQUIRED)
 target_link_libraries(prober_core PUBLIC Threads::Threads)
+
+add_executable(http-prober src/main.cpp)
+target_link_libraries(http-prober PRIVATE prober_core proculus_results)
 
 if(BUILD_TESTING)
 	add_executable(test_analyze tests/test_analyze.cpp)
@@ -18,4 +21,8 @@ if(BUILD_TESTING)
 	add_executable(test_prober tests/test_prober.cpp)
 	target_link_libraries(test_prober PRIVATE prober_core)
 	add_test(NAME http_prober COMMAND test_prober)
+
+	add_executable(test_report tests/test_report.cpp)
+	target_link_libraries(test_report PRIVATE prober_core)
+	add_test(NAME http_report COMMAND test_report)
 endif()
