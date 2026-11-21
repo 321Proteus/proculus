@@ -4,6 +4,8 @@
 // Thin RAII wrapper over the C pc_ipset for C++ services.
 
 #include <cstdint>
+#include <cstdlib>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -34,6 +36,11 @@ public:
 		if (pc_ipset_add_spec(&set_, spec.c_str()) != 0)
 			throw std::invalid_argument("invalid IP spec: " + spec);
 	}
+	// Comma/whitespace separated specs
+	void add_list(const std::string& list) {
+		if (pc_ipset_add_list(&set_, list.c_str()) != 0)
+			throw std::invalid_argument("invalid IP list: " + list);
+	}
 	void subtract(pc_range r) {
 		check(pc_ipset_subtract_range(&set_, r), "subtract");
 	}
@@ -59,7 +66,7 @@ public:
 		char* s = pc_ipset_format(&set_, sep);
 		if (!s) throw std::bad_alloc();
 		std::string out(s);
-		free(s);
+		std::free(s);
 		return out;
 	}
 
