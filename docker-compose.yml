@@ -48,6 +48,14 @@ services:
       - results:/data:ro
     profiles: ["tools"]
 
+  # Looks at web services (title, headers, cookies, redirects, TLS certificate, favicon):
+  #   docker compose run --rm http-prober --scope 10.0.0.0/24 --allowed-ports 80,443 http://10.0.0.5
+  http-prober:
+    build:
+      context: .
+      target: http-prober
+    profiles: ["tools"]
+
   scheduler:
     build:
       context: .

@@ -46,6 +46,13 @@ COPY --from=build /src/build/services/differ/differ /usr/local/bin/differ
 USER proculus
 ENTRYPOINT ["differ"]
 
+FROM runtime-base AS http-prober
+RUN apt-get update && apt-get install -y --no-install-recommends libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/build/services/http-prober/http-prober /usr/local/bin/http-prober
+USER proculus
+ENTRYPOINT ["http-prober"]
+
 FROM runtime-base AS scheduler
 COPY --from=build /src/build/services/scheduler/scheduler /usr/local/bin/scheduler
 USER proculus
