@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "proculus/ipset.h"
+#include "proculus/netutil/ipset.h"
 
 static uint32_t ip(const char* s) {
 	uint32_t v;

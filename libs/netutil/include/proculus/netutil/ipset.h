@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "proculus/range.h"
+#include "proculus/netutil/range.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -13,8 +13,11 @@ add_compile_options(-Wall -Wextra -Wpedantic)
 
 include(CTest)
 
+option(PROCULUS_REQUIRE_DB "Fail if libpq/libsodium are missing instead of skipping libs/db" OFF)
+
 add_subdirectory(libs/common)
 add_subdirectory(libs/netutil)
+add_subdirectory(libs/db)
 add_subdirectory(services/gateway)
 add_subdirectory(services/planner)
 add_subdirectory(services/scan-worker)

@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <sstream>
 
-#include "proculus/ipset.hpp"
-#include "proculus/portset.hpp"
+#include "proculus/netutil/ipset.hpp"
+#include "proculus/netutil/portset.hpp"
 
 namespace proculus {
 

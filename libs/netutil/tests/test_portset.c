@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "proculus/portset.h"
+#include "proculus/netutil/portset.h"
 
 static void expect_format(pc_portset *s, const char *want) {
 	char *got = pc_portset_format(s);

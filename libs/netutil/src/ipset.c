@@ -1,4 +1,4 @@
-#include "proculus/ipset.h"
+#include "proculus/netutil/ipset.h"
 
 #include <stdlib.h>
 #include <string.h>
