@@ -105,7 +105,8 @@ static void test_big_numbers_and_hostile_text() {
 	// pathological nesting must not crash the process
 	bool rejected = false;
 	try {
-		(void)Json::parse(std::string(200000, '[') + std::string(200000, ']'));
+		Json deep = Json::parse(std::string(200000, '[') + std::string(200000, ']'));
+		(void)deep;
 	} catch (const Json::exception&) {
 		rejected = true;
 	} catch (...) {
@@ -115,7 +116,12 @@ static void test_big_numbers_and_hostile_text() {
 	// invalid JSON text is an error, not a crash
 	for (const char* bad : {"", "{", "{\"a\":}", "[1,]", "nul", "\"\xff\""}) {
 		bool threw = false;
-		try { (void)Json::parse(bad); } catch (const Json::exception&) { threw = true; }
+		try {
+			Json parsed = Json::parse(bad);
+			(void)parsed;
+		} catch (const Json::exception&) {
+			threw = true;
+		}
 		assert(threw);
 	}
 }
