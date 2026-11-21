@@ -25,6 +25,12 @@ services:
       target: planner
     profiles: ["tools"]
 
+  scheduler:
+    build:
+      context: .
+      target: scheduler
+    profiles: ["tools"]
+
   scan-worker:
     build:
       context: .
