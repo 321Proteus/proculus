@@ -1,0 +1,674 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "php",
+      "name": "PHP",
+      "category": "framework",
+      "tags": [
+        "php",
+        "language"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "regex",
+            "value": "^PHP(/|$)"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "PHPSESSID"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:x-powered-by",
+        "regex": "PHP/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-powered-by": "PHP/8.2.12"
+          },
+          "version": "8.2.12"
+        },
+        {
+          "name": "session cookie",
+          "evidence": {
+            "cookie": [
+              "PHPSESSID"
+            ]
+          }
+        },
+        {
+          "name": "express",
+          "evidence": {
+            "header:x-powered-by": "Express"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "aspnet",
+      "name": "ASP.NET",
+      "category": "framework",
+      "tags": [
+        "dotnet",
+        "language"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-aspnet-version",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "regex",
+            "value": "^ASP\\.NET"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "ASP.NET_SessionId"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:x-aspnet-version",
+        "regex": "([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "version header",
+          "evidence": {
+            "header:x-aspnet-version": "4.0.30319"
+          },
+          "version": "4.0.30319"
+        },
+        {
+          "name": "session cookie",
+          "evidence": {
+            "cookie": [
+              "ASP.NET_SessionId"
+            ]
+          }
+        },
+        {
+          "name": "php",
+          "evidence": {
+            "cookie": [
+              "PHPSESSID"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "aspnet-mvc",
+      "name": "ASP.NET MVC",
+      "category": "framework",
+      "tags": [
+        "dotnet"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-aspnetmvc-version",
+            "op": "exists"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:x-aspnetmvc-version",
+        "regex": "([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-aspnetmvc-version": "5.2"
+          },
+          "version": "5.2"
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "Microsoft-IIS/10.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "express",
+      "name": "Express (Node.js)",
+      "category": "framework",
+      "tags": [
+        "nodejs"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "regex",
+            "value": "^Express"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "connect.sid"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-powered-by": "Express"
+          }
+        },
+        {
+          "name": "session cookie",
+          "evidence": {
+            "cookie": [
+              "connect.sid"
+            ]
+          }
+        },
+        {
+          "name": "php",
+          "evidence": {
+            "header:x-powered-by": "PHP/8.2"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "nextjs",
+      "name": "Next.js",
+      "category": "framework",
+      "tags": [
+        "nodejs",
+        "react"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "regex",
+            "value": "^Next\\.js"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/_next/static/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-powered-by": "Next.js"
+          }
+        },
+        {
+          "name": "assets",
+          "evidence": {
+            "body": "<script src=\"/_next/static/chunks/main.js\">"
+          }
+        },
+        {
+          "name": "plain page",
+          "evidence": {
+            "body": "<html></html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "nuxt",
+      "name": "Nuxt",
+      "category": "framework",
+      "tags": [
+        "nodejs",
+        "vue"
+      ],
+      "signals": [
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/_nuxt/"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "window.__NUXT__"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "assets",
+          "evidence": {
+            "body": "<script src=\"/_nuxt/app.js\">"
+          }
+        },
+        {
+          "name": "plain",
+          "evidence": {
+            "body": "<html></html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "angular",
+      "name": "Angular",
+      "category": "framework",
+      "tags": [
+        "javascript"
+      ],
+      "signals": [
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<[a-z-]+[^>]*\\sng-version=\\\"[0-9]"
+          }
+        }
+      ],
+      "version": {
+        "field": "body",
+        "regex": "ng-version=\\\"([0-9][0-9.]*)\\\""
+      },
+      "examples": [
+        {
+          "name": "root element",
+          "evidence": {
+            "body": "<app-root ng-version=\"17.0.8\"></app-root>"
+          },
+          "version": "17.0.8"
+        },
+        {
+          "name": "no angular",
+          "evidence": {
+            "body": "<div id=app></div>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "django",
+      "name": "Django",
+      "category": "framework",
+      "tags": [
+        "python"
+      ],
+      "threshold": 0.6,
+      "signals": [
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "csrftoken"
+          }
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "csrfmiddlewaretoken"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "csrf cookie",
+          "evidence": {
+            "cookie": [
+              "csrftoken",
+              "sessionid"
+            ]
+          }
+        },
+        {
+          "name": "form token",
+          "evidence": {
+            "body": "<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"x\">"
+          }
+        },
+        {
+          "name": "only a session cookie",
+          "evidence": {
+            "cookie": [
+              "sessionid"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "rails",
+      "name": "Ruby on Rails",
+      "category": "framework",
+      "tags": [
+        "ruby"
+      ],
+      "signals": [
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "<meta name=\"csrf-param\" content=\"authenticity_token\""
+          }
+        },
+        {
+          "weight": 0.5,
+          "match": {
+            "field": "cookie",
+            "op": "regex",
+            "value": "^_[a-z0-9_]+_session$"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "contains",
+            "value": "Phusion Passenger"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "csrf meta",
+          "evidence": {
+            "body": "<meta name=\"csrf-param\" content=\"authenticity_token\" />"
+          }
+        },
+        {
+          "name": "session cookie",
+          "evidence": {
+            "cookie": [
+              "_myapp_session"
+            ]
+          }
+        },
+        {
+          "name": "php",
+          "evidence": {
+            "cookie": [
+              "PHPSESSID"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "laravel",
+      "name": "Laravel",
+      "category": "framework",
+      "tags": [
+        "php"
+      ],
+      "threshold": 0.5,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "laravel_session"
+          }
+        },
+        {
+          "weight": 0.45,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "XSRF-TOKEN"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "session cookie",
+          "evidence": {
+            "cookie": [
+              "laravel_session",
+              "XSRF-TOKEN"
+            ]
+          }
+        },
+        {
+          "name": "only xsrf",
+          "evidence": {
+            "cookie": [
+              "XSRF-TOKEN"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "spring",
+      "name": "Spring (Java)",
+      "category": "framework",
+      "tags": [
+        "java"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Whitelabel Error Page"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-application-context",
+            "op": "exists"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "default error page",
+          "evidence": {
+            "body": "<h1>Whitelabel Error Page</h1>"
+          }
+        },
+        {
+          "name": "context header",
+          "evidence": {
+            "header:x-application-context": "application:8080"
+          }
+        },
+        {
+          "name": "plain",
+          "evidence": {
+            "body": "<h1>Not Found</h1>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "java-servlet",
+      "name": "Java servlet container",
+      "category": "framework",
+      "tags": [
+        "java"
+      ],
+      "description": "A JSESSIONID cookie: some servlet container (Tomcat, Jetty, WebLogic, ...) is behind this.",
+      "signals": [
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "JSESSIONID"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "JSESSIONID"
+            ]
+          }
+        },
+        {
+          "name": "php",
+          "evidence": {
+            "cookie": [
+              "PHPSESSID"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "coldfusion",
+      "name": "Adobe ColdFusion",
+      "category": "framework",
+      "tags": [
+        "cfml"
+      ],
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "CFID"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "CFTOKEN"
+          }
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "contains",
+            "value": "ColdFusion"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookies",
+          "evidence": {
+            "cookie": [
+              "CFID",
+              "CFTOKEN"
+            ]
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "cookie": [
+              "a"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "symfony",
+      "name": "Symfony",
+      "category": "framework",
+      "tags": [
+        "php"
+      ],
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-debug-token",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-debug-token-link",
+            "op": "exists"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "debug header",
+          "evidence": {
+            "header:x-debug-token": "a1b2c3"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}

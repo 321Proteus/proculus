@@ -1,0 +1,532 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "tls-self-signed",
+      "name": "Self-signed certificate",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 1,
+      "description": "Not issued by a CA: typical for appliances and test systems.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "tls.self_signed",
+            "op": "equals",
+            "value": true
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "self-signed",
+          "evidence": {
+            "tls.self_signed": true
+          }
+        },
+        {
+          "name": "ca-issued",
+          "evidence": {
+            "tls.self_signed": false
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tls-expired",
+      "name": "Expired certificate",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "tls.expired",
+            "op": "equals",
+            "value": true
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "expired",
+          "evidence": {
+            "tls.expired": true
+          }
+        },
+        {
+          "name": "valid",
+          "evidence": {
+            "tls.expired": false
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tls-not-yet-valid",
+      "name": "Certificate not yet valid",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 2,
+      "description": "Often a device with a wrong clock.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "tls.not_yet_valid",
+            "op": "equals",
+            "value": true
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "future",
+          "evidence": {
+            "tls.not_yet_valid": true
+          }
+        },
+        {
+          "name": "valid",
+          "evidence": {
+            "tls.not_yet_valid": false
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tls-name-mismatch",
+      "name": "Certificate does not match the host name",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 1,
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "tls.hostname_match",
+            "op": "equals",
+            "value": false
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "mismatch",
+          "evidence": {
+            "tls.hostname_match": false
+          }
+        },
+        {
+          "name": "match",
+          "evidence": {
+            "tls.hostname_match": true
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "not checked",
+          "evidence": {
+            "tls": true
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tls-weak-key",
+      "name": "Weak certificate key",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 3,
+      "description": "An RSA key shorter than 2048 bits.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "tls.key_type",
+                "op": "equals",
+                "value": "RSA"
+              },
+              {
+                "field": "tls.key_bits",
+                "op": "lt",
+                "value": 2048
+              }
+            ]
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "rsa 1024",
+          "evidence": {
+            "tls.key_type": "RSA",
+            "tls.key_bits": 1024
+          }
+        },
+        {
+          "name": "rsa 2048",
+          "evidence": {
+            "tls.key_type": "RSA",
+            "tls.key_bits": 2048
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "ec 256",
+          "evidence": {
+            "tls.key_type": "EC",
+            "tls.key_bits": 256
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tls-weak-signature",
+      "name": "Certificate signed with SHA-1 or MD5",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "tls.signature_algorithm",
+            "op": "regex",
+            "value": "(md5|sha1)"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "sha1",
+          "evidence": {
+            "tls.signature_algorithm": "sha1WithRSAEncryption"
+          }
+        },
+        {
+          "name": "ecdsa sha1",
+          "evidence": {
+            "tls.signature_algorithm": "ecdsa-with-SHA1"
+          }
+        },
+        {
+          "name": "md5",
+          "evidence": {
+            "tls.signature_algorithm": "md5WithRSAEncryption"
+          }
+        },
+        {
+          "name": "sha256",
+          "evidence": {
+            "tls.signature_algorithm": "sha256WithRSAEncryption"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tls-old-protocol",
+      "name": "Obsolete TLS / SSL protocol version",
+      "category": "other",
+      "tags": [
+        "tls"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "tls.version",
+            "op": "regex",
+            "value": "^(SSLv[23]|TLSv1(\\.1)?)$"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "tls 1.0",
+          "evidence": {
+            "tls.version": "TLSv1"
+          }
+        },
+        {
+          "name": "tls 1.1",
+          "evidence": {
+            "tls.version": "TLSv1.1"
+          }
+        },
+        {
+          "name": "ssl 3",
+          "evidence": {
+            "tls.version": "SSLv3"
+          }
+        },
+        {
+          "name": "tls 1.2",
+          "evidence": {
+            "tls.version": "TLSv1.2"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "tls 1.3",
+          "evidence": {
+            "tls.version": "TLSv1.3"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tech-disclosing-headers",
+      "name": "Headers that reveal the technology",
+      "category": "other",
+      "tags": [
+        "information-disclosure"
+      ],
+      "interest": 1,
+      "description": "Response headers naming the framework or its version help an attacker pick exploits.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header_names",
+            "op": "regex",
+            "value": "^(x-powered-by|x-aspnet-version|x-aspnetmvc-version|x-generator|x-runtime|x-version)$"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "x-powered-by",
+          "evidence": {
+            "header_names": [
+              "server",
+              "x-powered-by"
+            ]
+          }
+        },
+        {
+          "name": "aspnet",
+          "evidence": {
+            "header_names": [
+              "x-aspnet-version"
+            ]
+          }
+        },
+        {
+          "name": "clean",
+          "evidence": {
+            "header_names": [
+              "server",
+              "content-type",
+              "date"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "server-version-disclosure",
+      "name": "Server header reveals a version",
+      "category": "other",
+      "tags": [
+        "information-disclosure"
+      ],
+      "interest": 1,
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "[A-Za-z_-]+/[0-9]+\\.[0-9]+"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "with version",
+          "evidence": {
+            "header:server": "Apache/2.4.41 (Ubuntu)"
+          }
+        },
+        {
+          "name": "without",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "internal-info-headers",
+      "name": "Headers that leak internal infrastructure",
+      "category": "other",
+      "tags": [
+        "information-disclosure"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "header_names",
+            "op": "regex",
+            "value": "^(x-backend-server|x-forwarded-server|x-upstream|x-real-server|x-served-by|x-host)$"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "backend",
+          "evidence": {
+            "header_names": [
+              "x-backend-server"
+            ]
+          }
+        },
+        {
+          "name": "clean",
+          "evidence": {
+            "header_names": [
+              "server"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "session-cookie-no-httponly",
+      "name": "Session-like cookie without HttpOnly",
+      "category": "other",
+      "tags": [
+        "cookies"
+      ],
+      "interest": 2,
+      "description": "Scripts in the page can read the cookie.",
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "cookie_no_httponly",
+            "op": "regex",
+            "value": "(sess|sid|auth|token|login|jwt)"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "session",
+          "evidence": {
+            "cookie_no_httponly": [
+              "PHPSESSID"
+            ]
+          }
+        },
+        {
+          "name": "token",
+          "evidence": {
+            "cookie_no_httponly": [
+              "auth_token"
+            ]
+          }
+        },
+        {
+          "name": "theme",
+          "evidence": {
+            "cookie_no_httponly": [
+              "theme"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "session-cookie-no-secure",
+      "name": "Session-like cookie without Secure on HTTPS",
+      "category": "other",
+      "tags": [
+        "cookies"
+      ],
+      "interest": 2,
+      "description": "The cookie may also be sent over plain HTTP.",
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "all": [
+              {
+                "field": "tls",
+                "op": "equals",
+                "value": true
+              },
+              {
+                "field": "cookie_insecure",
+                "op": "regex",
+                "value": "(sess|sid|auth|token|login|jwt)"
+              }
+            ]
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "insecure",
+          "evidence": {
+            "tls": true,
+            "cookie_insecure": [
+              "sessionid"
+            ]
+          }
+        },
+        {
+          "name": "plain http",
+          "evidence": {
+            "tls": false,
+            "cookie_insecure": [
+              "sessionid"
+            ]
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "not session",
+          "evidence": {
+            "tls": true,
+            "cookie_insecure": [
+              "lang"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,945 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "staging-host-name",
+      "name": "Test / staging host name",
+      "category": "staging",
+      "tags": [
+        "environment"
+      ],
+      "interest": 3,
+      "description": "The name suggests a non-production system (dev, test, staging, uat, qa, preprod, sandbox, demo). These are often less protected than production.",
+      "signals": [
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "host",
+            "op": "regex",
+            "value": "^(dev|test|staging|stage|stg|uat|qa|preprod|pre-prod|sandbox|demo)[0-9]*[.-]"
+          },
+          "label": "host name"
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "hostnames",
+            "op": "regex",
+            "value": "^(dev|test|staging|stage|stg|uat|qa|preprod|pre-prod|sandbox|demo)[0-9]*[.-]"
+          },
+          "label": "DNS name"
+        }
+      ],
+      "examples": [
+        {
+          "name": "staging",
+          "evidence": {
+            "host": "staging.example.org"
+          }
+        },
+        {
+          "name": "dns name",
+          "evidence": {
+            "hostnames": [
+              "uat-portal.example.org"
+            ]
+          }
+        },
+        {
+          "name": "numbered",
+          "evidence": {
+            "host": "dev2.example.org"
+          }
+        },
+        {
+          "name": "production",
+          "evidence": {
+            "host": "www.example.org"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "word inside",
+          "evidence": {
+            "host": "contest.example.org"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "staging-title",
+      "name": "Test / staging page title",
+      "category": "staging",
+      "tags": [
+        "environment"
+      ],
+      "interest": 3,
+      "description": "The page labels itself as a non-production system. A title that merely mentions the word (a blog post about staging) does not count.",
+      "signals": [
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": [
+              "\\((staging|stage|test|testing|uat|qa|dev|development|preprod|pre-production|sandbox)\\)|\\[(staging|stage|test|testing|uat|qa|dev|development|preprod|pre-production|sandbox)\\]",
+              "[-|:] ?(staging|uat|qa|sandbox|preprod|pre-production)$",
+              "\\b(staging|stage|test|testing|uat|qa|dev|development|preprod|pre-production|sandbox) (environment|server|site|instance|system)\\b",
+              "\\bpre-?production\\b|not for production"
+            ]
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "parenthesised",
+          "evidence": {
+            "title": "Acme Portal (STAGING)"
+          }
+        },
+        {
+          "name": "bracketed",
+          "evidence": {
+            "title": "[TEST] Acme Portal"
+          }
+        },
+        {
+          "name": "trailing label",
+          "evidence": {
+            "title": "Acme Portal - UAT"
+          }
+        },
+        {
+          "name": "environment word",
+          "evidence": {
+            "title": "Staging server"
+          }
+        },
+        {
+          "name": "preprod",
+          "evidence": {
+            "title": "Pre-production login"
+          }
+        },
+        {
+          "name": "not for production",
+          "evidence": {
+            "title": "Acme (not for production use)"
+          }
+        },
+        {
+          "name": "normal",
+          "evidence": {
+            "title": "Acme Portal"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "marketing demo",
+          "evidence": {
+            "title": "Product demo video"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "blog about staging",
+          "evidence": {
+            "title": "Engineering blog - how we run staging and the admin console"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "testing as a topic",
+          "evidence": {
+            "title": "Testing your code: a guide"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "development guide",
+          "evidence": {
+            "title": "Development guide"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "staging-header",
+      "name": "Environment header says test / staging",
+      "category": "staging",
+      "tags": [
+        "environment"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-environment",
+            "op": "contains",
+            "value": [
+              "dev",
+              "test",
+              "stag",
+              "qa",
+              "uat",
+              "preprod",
+              "sandbox"
+            ]
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-env",
+            "op": "contains",
+            "value": [
+              "dev",
+              "test",
+              "stag",
+              "qa",
+              "uat",
+              "preprod",
+              "sandbox"
+            ]
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-app-env",
+            "op": "contains",
+            "value": [
+              "dev",
+              "test",
+              "stag",
+              "qa",
+              "uat",
+              "preprod",
+              "sandbox"
+            ]
+          }
+        },
+        {
+          "weight": 0.35,
+          "match": {
+            "field": "header:x-robots-tag",
+            "op": "contains",
+            "value": "noindex"
+          },
+          "label": "hidden from search engines"
+        }
+      ],
+      "examples": [
+        {
+          "name": "x-environment",
+          "evidence": {
+            "header:x-environment": "staging"
+          }
+        },
+        {
+          "name": "x-env",
+          "evidence": {
+            "header:x-env": "uat"
+          }
+        },
+        {
+          "name": "production",
+          "evidence": {
+            "header:x-environment": "production"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "noindex alone",
+          "evidence": {
+            "header:x-robots-tag": "noindex, nofollow"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "debug-django",
+      "name": "Django debug mode on",
+      "category": "staging",
+      "tags": [
+        "debug",
+        "python"
+      ],
+      "interest": 5,
+      "description": "The detailed Django error page is shown to visitors: it leaks settings, paths and code.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "You're seeing this error because you have"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^DisallowedHost at"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "debug page",
+          "evidence": {
+            "body": "<p>You're seeing this error because you have <code>DEBUG = True</code> in your settings</p>"
+          }
+        },
+        {
+          "name": "disallowed host",
+          "evidence": {
+            "title": "DisallowedHost at /"
+          }
+        },
+        {
+          "name": "normal",
+          "evidence": {
+            "body": "<h1>Not Found</h1>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "debug-laravel",
+      "name": "Laravel debug mode on",
+      "category": "staging",
+      "tags": [
+        "debug",
+        "php"
+      ],
+      "interest": 5,
+      "threshold": 0.8,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Whoops! There was an error."
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "facade/ignition"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "whoops",
+          "evidence": {
+            "body": "<div>Whoops! There was an error.</div>"
+          }
+        },
+        {
+          "name": "ignition",
+          "evidence": {
+            "body": "<script src=\"/_ignition/x.js\">facade/ignition"
+          }
+        },
+        {
+          "name": "normal",
+          "evidence": {
+            "body": "<h1>500</h1>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "debug-symfony-profiler",
+      "name": "Symfony profiler enabled",
+      "category": "staging",
+      "tags": [
+        "debug",
+        "php"
+      ],
+      "interest": 4,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-debug-token-link",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:x-debug-token",
+            "op": "exists"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "link header",
+          "evidence": {
+            "header:x-debug-token-link": "/_profiler/abc123"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "debug-werkzeug-console",
+      "name": "Werkzeug interactive debugger",
+      "category": "staging",
+      "tags": [
+        "debug",
+        "python"
+      ],
+      "interest": 5,
+      "description": "The Flask/Werkzeug debugger allows running Python code from the browser.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "The debugger caught an exception"
+          }
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/console:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/console:title",
+                "op": "contains",
+                "value": "Console"
+              }
+            ]
+          },
+          "label": "/console"
+        }
+      ],
+      "examples": [
+        {
+          "name": "traceback page",
+          "evidence": {
+            "body": "<p>The debugger caught an exception in your WSGI application.</p>"
+          }
+        },
+        {
+          "name": "console",
+          "evidence": {
+            "path:/console:status": 200,
+            "path:/console:title": "Interactive Console"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "debug-dotnet-error",
+      "name": "ASP.NET detailed error page",
+      "category": "staging",
+      "tags": [
+        "debug",
+        "dotnet"
+      ],
+      "interest": 4,
+      "threshold": 0.6,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Server Error in '.*' Application"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Stack Trace:"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "yellow screen",
+          "evidence": {
+            "title": "Server Error in '/' Application"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Error"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "debug-stack-trace",
+      "name": "Stack trace shown in the page",
+      "category": "staging",
+      "tags": [
+        "debug"
+      ],
+      "interest": 3,
+      "description": "An error page that discloses code paths and library versions.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Traceback (most recent call last)"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "\\bat (org|java|javax|com|net)\\.[A-Za-z0-9_.$]+\\([A-Za-z0-9_]+\\.java:[0-9]+\\)"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "(Fatal error|Parse error|Warning|Notice)(</b>)?: .{1,200} on line (<b>)?[0-9]+"
+          },
+          "label": "PHP error message"
+        }
+      ],
+      "examples": [
+        {
+          "name": "python",
+          "evidence": {
+            "body": "Traceback (most recent call last):\n  File \"app.py\", line 3"
+          }
+        },
+        {
+          "name": "java",
+          "evidence": {
+            "body": "at com.example.app.Main.run(Main.java:42)"
+          }
+        },
+        {
+          "name": "php",
+          "evidence": {
+            "body": "<b>Warning</b>: Undefined variable in /var/www/x.php on line 12"
+          }
+        },
+        {
+          "name": "php html output",
+          "evidence": {
+            "body": "<br />\n<b>Warning</b>:  Undefined variable $x in <b>/var/www/html/index.php</b> on line <b>12</b><br />"
+          }
+        },
+        {
+          "name": "php fatal",
+          "evidence": {
+            "body": "Fatal error: Uncaught Error: Call to undefined function foo() in /var/www/a.php on line 7"
+          }
+        },
+        {
+          "name": "normal",
+          "evidence": {
+            "body": "<h1>Oops</h1>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "exposed-git",
+      "name": "Exposed .git directory",
+      "category": "other",
+      "tags": [
+        "exposure",
+        "source-code"
+      ],
+      "interest": 5,
+      "description": "The repository metadata is downloadable; the source code and history can usually be reconstructed from it.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/.git/HEAD:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/.git/HEAD:body",
+                "op": "regex",
+                "value": "^ref: refs/"
+              }
+            ]
+          },
+          "label": "/.git/HEAD readable"
+        }
+      ],
+      "examples": [
+        {
+          "name": "readable",
+          "evidence": {
+            "path:/.git/HEAD:status": 200,
+            "path:/.git/HEAD:body": "ref: refs/heads/main\n"
+          }
+        },
+        {
+          "name": "not found",
+          "evidence": {
+            "path:/.git/HEAD:status": 404
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "soft 404 page",
+          "evidence": {
+            "path:/.git/HEAD:status": 200,
+            "path:/.git/HEAD:body": "<html>Not found</html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "exposed-phpinfo",
+      "name": "phpinfo() page exposed",
+      "category": "other",
+      "tags": [
+        "exposure",
+        "php"
+      ],
+      "interest": 4,
+      "description": "Reveals configuration, paths, loaded modules and environment variables.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/phpinfo.php:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/phpinfo.php:body",
+                "op": "contains",
+                "value": "PHP Version"
+              }
+            ]
+          },
+          "label": "/phpinfo.php"
+        }
+      ],
+      "examples": [
+        {
+          "name": "exposed",
+          "evidence": {
+            "path:/phpinfo.php:status": 200,
+            "path:/phpinfo.php:body": "<title>phpinfo()</title><td>PHP Version 8.2.12</td>"
+          }
+        },
+        {
+          "name": "missing",
+          "evidence": {
+            "path:/phpinfo.php:status": 404
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "exposed-apache-status",
+      "name": "Apache server-status exposed",
+      "category": "other",
+      "tags": [
+        "exposure"
+      ],
+      "interest": 3,
+      "description": "Shows live requests (client addresses and URLs) to anyone who asks.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/server-status:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/server-status:body",
+                "op": "contains",
+                "value": "Apache Server Status"
+              }
+            ]
+          },
+          "label": "/server-status"
+        }
+      ],
+      "examples": [
+        {
+          "name": "exposed",
+          "evidence": {
+            "path:/server-status:status": 200,
+            "path:/server-status:body": "<title>Apache Status</title><h1>Apache Server Status for example.org</h1>"
+          }
+        },
+        {
+          "name": "forbidden",
+          "evidence": {
+            "path:/server-status:status": 403
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "exposed-spring-actuator",
+      "name": "Spring Boot actuator exposed",
+      "category": "other",
+      "tags": [
+        "exposure",
+        "java"
+      ],
+      "interest": 4,
+      "description": "Management endpoints (environment, heap dumps, ...) can be reachable without authentication.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/actuator:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/actuator:body",
+                "op": "contains",
+                "value": "\"_links\""
+              }
+            ]
+          },
+          "label": "/actuator"
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "all": [
+              {
+                "field": "path:/actuator/health:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/actuator/health:body",
+                "op": "regex",
+                "value": "\\\"status\\\"\\s*:\\s*\\\"(UP|DOWN|OUT_OF_SERVICE)\\\""
+              }
+            ]
+          },
+          "label": "/actuator/health"
+        }
+      ],
+      "examples": [
+        {
+          "name": "index",
+          "evidence": {
+            "path:/actuator:status": 200,
+            "path:/actuator:body": "{\"_links\":{\"self\":{\"href\":\"/actuator\"}}}"
+          }
+        },
+        {
+          "name": "health",
+          "evidence": {
+            "path:/actuator/health:status": 200,
+            "path:/actuator/health:body": "{\"status\":\"UP\"}"
+          }
+        },
+        {
+          "name": "missing",
+          "evidence": {
+            "path:/actuator:status": 404
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "default-web-page",
+      "name": "Default web server page",
+      "category": "other",
+      "tags": [
+        "default-install"
+      ],
+      "interest": 1,
+      "description": "A freshly installed web server with nothing deployed, or a virtual host that fell through to the default: worth checking who owns it.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Welcome to nginx!?$"
+          },
+          "label": "nginx"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Apache2 (Ubuntu|Debian) Default Page"
+          },
+          "label": "apache-debian"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^(Test Page for the (Apache )?HTTP Server|Apache HTTP Server Test Page)"
+          },
+          "label": "rhel-test-page"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^(IIS Windows Server|Internet Information Services|IIS7)"
+          },
+          "label": "iis"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Apache Tomcat/[0-9.]+$"
+          },
+          "label": "tomcat"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^(lighttpd|Placeholder page)"
+          },
+          "label": "lighttpd"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Caddy works!"
+          },
+          "label": "caddy"
+        }
+      ],
+      "examples": [
+        {
+          "name": "nginx",
+          "evidence": {
+            "title": "Welcome to nginx!"
+          }
+        },
+        {
+          "name": "apache-debian",
+          "evidence": {
+            "title": "Apache2 Ubuntu Default Page: It works"
+          }
+        },
+        {
+          "name": "rhel-test-page",
+          "evidence": {
+            "title": "Test Page for the HTTP Server on Rocky Linux"
+          }
+        },
+        {
+          "name": "iis",
+          "evidence": {
+            "title": "IIS Windows Server"
+          }
+        },
+        {
+          "name": "tomcat",
+          "evidence": {
+            "title": "Apache Tomcat/9.0.65"
+          }
+        },
+        {
+          "name": "lighttpd",
+          "evidence": {
+            "title": "Placeholder page"
+          }
+        },
+        {
+          "name": "caddy",
+          "evidence": {
+            "title": "Caddy works!"
+          }
+        },
+        {
+          "name": "real site",
+          "evidence": {
+            "title": "Acme Corp - Home"
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}
