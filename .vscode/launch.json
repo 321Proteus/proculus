@@ -1,0 +1,25 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Proculus: CBR (debug console)",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/services/gateway/gateway",
+			"args": [],
+			"cwd": "${workspaceFolder}",
+			"preLaunchTask": "cmake: build",
+			"console": "internalConsole"
+		},
+		{
+			"name": "Proculus: CBR (terminal)",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/services/gateway/gateway",
+			"args": [],
+			"cwd": "${workspaceFolder}",
+			"preLaunchTask": "cmake: build",
+			"terminal": "integrated"
+		}
+	]
+}
