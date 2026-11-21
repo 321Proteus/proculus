@@ -85,5 +85,6 @@ int pc_range_to_cidrs(const pc_range* r, pc_cidr* out, size_t cap) {
 
 int pc_ip_is_reserved(uint32_t ip) {
 	return (ip >> 24) == 0 || (ip >> 24) == 127 ||
-		(ip >> 16) == 0xa9fe; // 169.254
+		(ip >> 16) == 0xa9fe || // 169.254
+		(ip >> 28) >= 0xe; // 224/4 multicast + 240/4 class E
 }
