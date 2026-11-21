@@ -4,15 +4,21 @@
 
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build libexpat1-dev \
+        build-essential cmake ninja-build pkg-config \
+        libexpat1-dev libpq-dev libsodium-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
-RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPROCULUS_REQUIRE_DB=ON \
     && cmake --build build
 
 FROM build AS test
 RUN ctest --test-dir build --output-on-failure
+
+# Same build, but meant to run against a live database: see the integration-test
+# service in docker-compose.yml.
+FROM build AS integration
+CMD ["ctest", "--test-dir", "build", "--output-on-failure"]
 
 FROM debian:bookworm-slim AS runtime-base
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus

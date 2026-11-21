@@ -4,6 +4,21 @@ services:
       context: .
       target: gateway
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: proculus
+      POSTGRES_PASSWORD: proculus # development only: use a secret in any real deployment
+      POSTGRES_DB: proculus
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proculus -d proculus"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    profiles: ["db", "test"]
+
   planner:
     build:
       context: .
@@ -15,3 +30,19 @@ services:
       context: .
       target: scan-worker
     profiles: ["tools"]
+
+  # Runs the whole test suite, including the database tests, against `postgres`:
+  #   docker compose --profile test run --rm integration-test
+  integration-test:
+    build:
+      context: .
+      target: integration
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PROCULUS_TEST_DB_URL: postgresql://proculus:proculus@postgres:5432/proculus
+    profiles: ["test"]
+
+volumes:
+  pgdata:
