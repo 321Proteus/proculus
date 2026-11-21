@@ -1,8 +1,13 @@
 #undef NDEBUG
+#include <unistd.h>
+
 #include <cassert>
+#include <filesystem>
 #include <sstream>
 
 #include "demo.hpp"
+#include "proculus/netutil/cidr.h"
+#include "proculus/results/results.hpp"
 
 using namespace proculus;
 
@@ -123,6 +128,48 @@ static void test_errors() {
 	assert(throws(c));
 }
 
+
+static void test_rounds_are_saved() {
+	namespace fs = std::filesystem;
+	fs::path dir = fs::temp_directory_path() / ("proculus_demo_store_" + std::to_string(getpid()));
+	fs::remove_all(dir);
+
+	DemoConfig c = small();
+	c.rounds = 2;
+	c.store_dir = dir.string();
+	auto reports = run(c);
+	assert(reports[0].run_id == 1 && reports[1].run_id == 2);
+
+	FileResultStore store(dir);
+	assert(store.list().size() == 2);
+	SimNetwork net = SimNetwork::generate(c.seed, c.networks, c.density);
+	for (const RoundReport& r : reports) {
+		RunRecord saved = *store.load(r.run_id);
+		assert(saved.source == "sim" && saved.hosts.size() == r.hosts_found);
+		assert(saved.started == format_time(r.started) && saved.finished == format_time(r.finished));
+		assert(saved.addresses_scanned == r.addresses && saved.chunks == r.chunks);
+		size_t services = 0;
+		for (const HostRecord& h : saved.hosts) {
+			uint32_t ip;
+			assert(pc_ip_parse(h.ip.c_str(), &ip) == 0 && net.is_up(ip, r.round));
+			assert(h.hostname == net.find(ip)->hostname);
+			// what was stored is exactly what the network exposed that round
+			auto truth = net.services(ip, r.round);
+			assert(h.services.size() == truth.size());
+			for (size_t i = 0; i < truth.size(); i++)
+				assert(h.services[i].port == truth[i].port && h.services[i].version == truth[i].version &&
+					h.services[i].product == truth[i].product);
+			services += h.services.size();
+		}
+		assert(services == r.services_found);
+	}
+
+	// without a store nothing is written and run_id stays 0
+	c.store_dir.clear();
+	assert(run(c)[0].run_id == 0);
+	fs::remove_all(dir);
+}
+
 static void test_narration() {
 	DemoConfig c = small();
 	c.quiet = false;
@@ -141,6 +188,7 @@ int main() {
 	test_window_pauses_and_resumes();
 	test_deterministic();
 	test_errors();
+	test_rounds_are_saved();
 	test_narration();
 	return 0;
 }

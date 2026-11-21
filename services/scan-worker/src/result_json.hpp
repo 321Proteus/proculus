@@ -10,9 +10,6 @@ namespace proculus {
 // Serialises a parsed scan as a JSON document (UTF-8, pretty-printed).
 std::string to_json(const NmapResult& r);
 
-// Escapes `s` as the body of a JSON string (without the quotes).
-std::string json_escape(const std::string& s);
-
 } // namespace proculus
 
 #endif // PROCULUS_RESULT_JSON_HPP

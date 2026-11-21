@@ -7,6 +7,8 @@
 #include "job.hpp"
 #include "nmap_xml.hpp"
 #include "process.hpp"
+#include <nlohmann/json.hpp>
+
 #include "result_json.hpp"
 
 using namespace proculus;
@@ -60,7 +62,15 @@ static void test_parse() {
 	std::string j = to_json(r);
 	assert(j.find("\"address\": \"10.0.0.5\"") != std::string::npos);
 	assert(j.find("Ubuntu \\\"lts\\\"") != std::string::npos);
-	assert(json_escape("a\"b\\c\n\x01") == "a\\\"b\\\\c\\n\\u0001");
+	// the output is valid JSON that reads back to the same data
+	auto doc = nlohmann::json::parse(j);
+	assert(doc.at("hosts").size() == 2 && doc.at("hosts")[0].at("ports")[0].at("service").at("extrainfo") == "Ubuntu \"lts\"");
+	assert(doc.at("hosts")[0].at("ports")[0].at("service").at("cpes").size() == 2 && doc.at("hosts_up") == 1);
+	assert(doc.at("elapsed_seconds") == 1.25);
+
+	// invalid UTF-8 from a banner is replaced, not fatal
+	r.hosts[0].ports[0].service.product = std::string("evil \xff\xfe");
+	assert(nlohmann::json::parse(to_json(r)).at("hosts")[0].at("ports")[0].at("service").at("product").get<std::string>().find("evil") == 0);
 }
 
 static void test_parse_errors() {
