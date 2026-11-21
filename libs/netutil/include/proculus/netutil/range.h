@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "proculus/cidr.h"
+#include "proculus/netutil/cidr.h"
 
 #ifdef __cplusplus
 extern "C" {

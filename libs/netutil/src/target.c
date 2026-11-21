@@ -1,4 +1,4 @@
-#include "proculus/target.h"
+#include "proculus/netutil/target.h"
 
 #include <string.h>
 

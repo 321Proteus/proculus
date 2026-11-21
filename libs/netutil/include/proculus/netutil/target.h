@@ -1,7 +1,7 @@
 #ifndef PROCULUS_TARGET_H
 #define PROCULUS_TARGET_H
 
-#include "proculus/range.h"
+#include "proculus/netutil/range.h"
 
 #ifdef __cplusplus
 extern "C" {

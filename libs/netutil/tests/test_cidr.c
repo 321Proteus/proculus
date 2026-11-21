@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "proculus/cidr.h"
+#include "proculus/netutil/cidr.h"
 
 static void check_bad(const char* s) {
 	pc_cidr c;

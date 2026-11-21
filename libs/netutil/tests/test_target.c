@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "proculus/target.h"
+#include "proculus/netutil/target.h"
 
 static void expect(const char* in, pc_target_kind kind) {
 	pc_target t;

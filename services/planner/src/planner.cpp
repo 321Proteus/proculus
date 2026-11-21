@@ -5,8 +5,8 @@
 #include <set>
 #include <stdexcept>
 
-#include "proculus/ipset.hpp"
-#include "proculus/target.h"
+#include "proculus/netutil/ipset.hpp"
+#include "proculus/netutil/target.h"
 
 namespace proculus {
 

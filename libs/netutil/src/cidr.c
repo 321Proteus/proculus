@@ -1,4 +1,4 @@
-#include "proculus/cidr.h"
+#include "proculus/netutil/cidr.h"
 
 #include <stdio.h>
 

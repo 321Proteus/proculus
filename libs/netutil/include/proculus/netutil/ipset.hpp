@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 
-#include "proculus/ipset.h"
+#include "proculus/netutil/ipset.h"
 
 namespace proculus {
 
