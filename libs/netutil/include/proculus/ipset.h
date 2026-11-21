@@ -32,6 +32,11 @@ int pc_ipset_add_cidr(pc_ipset* s, const pc_cidr* c);
 /* Parses `spec` with pc_range_parse and adds it. Returns -1 on bad input. */
 int pc_ipset_add_spec(pc_ipset* s, const char* spec);
 
+/* Parses a list of specs separated by commas and/or whitespace (e.g.
+ * "10.0.0.0/24, 192.168.1.1-20\n8.8.8.8") and adds them. All-or-nothing:
+ * on error the set is left unchanged and -1 is returned. */
+int pc_ipset_add_list(pc_ipset *s, const char *list);
+
 /* Removes every address of `r` from the set (exclusions). 0 / -1 (alloc). */
 int pc_ipset_subtract_range(pc_ipset* s, pc_range r);
 
@@ -50,6 +55,15 @@ pc_range pc_ipset_range_at(pc_ipset* s, size_t i);
  * scan chunks without enumerating addresses. 0 / -1 (alloc).
  */
 int pc_ipset_slice(pc_ipset* s, uint64_t start, uint64_t count, pc_ipset* out);
+
+/* Removes the addresses for which pc_ip_is_reserved() is true. 0 / -1 (alloc). */
+int pc_ipset_subtract_reserved(pc_ipset *s);
+
+/* Returns a malloc'd string of the set as minimal CIDR blocks joined by
+ * `sep` (a bare address for /32), e.g. "10.0.0.0/24,10.0.1.5". Suitable for
+ * nmap arguments (sep ' ') or an -iL file (sep '\n'), and parseable by
+ * pc_ipset_add_list. Empty string for an empty set. Caller frees; NULL on OOM. */
+char *pc_ipset_format(pc_ipset *s, char sep);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,7 @@
 #include "proculus/ipset.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 void pc_ipset_init(pc_ipset* s) {
 	s->ranges = NULL;
@@ -177,4 +178,87 @@ int pc_ipset_slice(pc_ipset* s, uint64_t start, uint64_t count, pc_ipset* out) {
 	}
 
 	return 0;
+}
+
+static int is_sep(char c) {
+	return c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+int pc_ipset_add_list(pc_ipset* s, const char* list) {
+	if (!list) return -1;
+	size_t orig_len = s->len;
+	int orig_dirty = s->dirty;
+	const char* p = list;
+
+	while (*p) {
+		if (is_sep(*p)) {
+			p++;
+			continue;
+		}
+
+		const char* start = p;
+		while (*p && !is_sep(*p))
+			p++;
+		char tok[64];
+
+		size_t n = (size_t)(p - start);
+		if (n >= sizeof tok) goto fail;
+
+		memcpy(tok, start, n);
+		tok[n] = '\0';
+
+		if (pc_ipset_add_spec(s, tok) != 0) goto fail;
+	}
+	return 0;
+
+fail:
+	s->len = orig_len;
+	s->dirty = orig_dirty;
+	return -1;
+}
+
+int pc_ipset_subtract_reserved(pc_ipset* s) {
+	// 0/8, 127/8, 169.254/16, 224.0.0.0 - 255.255.255.255
+	static const pc_range reserved[] = {
+		{ 0x00000000u, 0x00ffffffu },
+		{ 0x7f000000u, 0x7fffffffu },
+		{ 0xa9fe0000u, 0xa9feffffu },
+		{ 0xe0000000u, 0xffffffffu },
+	};
+
+	for (size_t i = 0; i < sizeof reserved / sizeof *reserved; i++) {
+		if (pc_ipset_subtract_range(s, reserved[i]) != 0) return -1;
+	}
+
+	return 0;
+}
+
+char* pc_ipset_format(pc_ipset* s, char sep) {
+	normalize(s);
+	// <= 62 blocks per range, each at most 255.255.255.255/32 + sep
+	char* buf = malloc(s->len * PC_RANGE_MAX_CIDRS * PC_CIDR_STR_MAX + 1);
+	if (!buf) return NULL;
+
+	char* w = buf;
+	int first = 1;
+
+	for (size_t i = 0; i < s->len; i++) {
+		pc_cidr blocks[PC_RANGE_MAX_CIDRS];
+		int n = pc_range_to_cidrs(&s->ranges[i], blocks, PC_RANGE_MAX_CIDRS);
+
+		for (int k = 0; k < n; k++) {
+			if (!first) *w++ = sep;
+			first = 0;
+
+			if (blocks[k].prefix == 32) {
+				pc_ip_format(blocks[k].base, w);
+			} else
+				pc_cidr_format(&blocks[k], w);
+
+			w += strlen(w);
+		}
+	}
+
+	*w = '\0';
+	return buf;
 }

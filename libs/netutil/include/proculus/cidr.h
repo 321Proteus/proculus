@@ -17,6 +17,9 @@ typedef struct {
 /* Size of the buffer needed by pc_ip_format ("255.255.255.255" + NUL). */
 #define PC_IP_STR_MAX 16
 
+/* Size of the buffer needed by pc_cidr_format ("255.255.255.255/32" + NUL). */
+#define PC_CIDR_STR_MAX 19
+
 /* Parses a dotted-quad IPv4 address. Strict: exactly 4 decimal octets
  * 0..255, no leading zeros, no whitespace. Returns 0 on success, -1 on error. */
 int pc_ip_parse(const char *s, uint32_t *out);
@@ -33,6 +36,9 @@ uint64_t pc_cidr_count(const pc_cidr *c);
 
 /* i-th address of the block, 0 <= i < pc_cidr_count(c). */
 uint32_t pc_cidr_nth(const pc_cidr *c, uint64_t i);
+
+/* Formats as "a.b.c.d/len" into `buf` (at least PC_CIDR_STR_MAX bytes). */
+void pc_cidr_format(const pc_cidr *c, char *buf);
 
 /* 1 if `ip` lies inside the block, else 0. */
 int pc_cidr_contains(const pc_cidr *c, uint32_t ip);

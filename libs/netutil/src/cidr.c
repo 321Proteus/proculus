@@ -86,3 +86,9 @@ uint32_t pc_cidr_nth(const pc_cidr* c, uint64_t i) {
 int pc_cidr_contains(const pc_cidr* c, uint32_t ip) {
 	return (ip & prefix_mask(c->prefix)) == c->base;
 }
+
+void pc_cidr_format(const pc_cidr *c, char *buf) {
+	char ip[PC_IP_STR_MAX];
+	pc_ip_format(c->base, ip);
+	snprintf(buf, PC_CIDR_STR_MAX, "%s/%u", ip, (unsigned)c->prefix);
+}
