@@ -77,10 +77,12 @@ static Result check(pg_result* r, pg_conn* conn) {
 	if (!r) throw DbError(trim_newline(PQerrorMessage(conn)));
 	ExecStatusType st = PQresultStatus(r);
 	if (st != PGRES_COMMAND_OK && st != PGRES_TUPLES_OK && st != PGRES_EMPTY_QUERY) {
-		const char* state = PQresultErrorField(r, PG_DIAG_SQLSTATE);
+		// copy out of the result before freeing it: the field points into it
+		const char* field = PQresultErrorField(r, PG_DIAG_SQLSTATE);
+		const std::string state = field ? field : "";
 		std::string msg = trim_newline(PQresultErrorMessage(r));
 		PQclear(r);
-		throw DbError(msg, state ? state : "");
+		throw DbError(msg, state);
 	}
 	return Result(r);
 }
