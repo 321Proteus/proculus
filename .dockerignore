@@ -1,8 +1,10 @@
-# Keep host build output (different OS/toolchain) out of the image context.
-build/
-.cache/
-.git/
-.vscode/
-.clangd
-compile_commands.json
+.git
+build
+build-*
+dist
+results
+results-dev
+results-sim
+PROCULUS_SCANNER
 *.pdf
+.vscode
