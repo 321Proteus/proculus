@@ -99,6 +99,8 @@ const Json& object_at(const Json& v, const char* what) {
 	return v;
 }
 
+} // namespace
+
 Json web_to_json(const WebRecord& w) {
 	Json j = Json::object();
 	j["url"] = w.url;
@@ -197,8 +199,6 @@ WebRecord web_from_json(const Json& v) {
 	}
 	return w;
 }
-
-} // namespace
 
 RunSummary summarize(const RunRecord& run) {
 	RunSummary s;

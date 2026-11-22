@@ -117,6 +117,11 @@ using Json = nlohmann::ordered_json;
 std::string dump_json(const Json& j, int indent = -1);
 
 Json run_to_json(const RunRecord& run);
+
+// The JSON form of a service's web data, as used inside a run. For stores that
+// keep the parts of it separately. web_from_json throws FormatError.
+Json web_to_json(const WebRecord& web);
+WebRecord web_from_json(const Json& v);
 RunRecord run_from_json(const Json& v); // throws FormatError
 
 // Persists runs. Implementations must be safe against partial writes: a run
