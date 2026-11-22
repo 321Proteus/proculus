@@ -22,9 +22,18 @@ ProbeJson cert_json(const CertInfo& c) {
 	return j;
 }
 
+const char* category_name(sig::Category c) { return sig::to_string(c); }
+
+ProbeJson detection_json(const sig::Detection& d) {
+	ProbeJson j = { { "id", d.id }, { "name", d.name }, { "category", category_name(d.category) }, { "confidence", d.confidence },
+		{ "interest", d.interest }, { "builtin", d.builtin }, { "tags", d.tags }, { "evidence", d.evidence } };
+	if (!d.version.empty()) j["version"] = d.version;
+	return j;
+}
+
 } // namespace
 
-ProbeJson probe_to_json(const HttpObservation& o, bool include_body) {
+ProbeJson probe_to_json(const HttpObservation& o, bool include_body, const Detections* detections) {
 	ProbeJson j = { { "ip", o.ip }, { "port", o.port }, { "tls", o.tls }, { "host", o.host }, { "url", o.url }, { "status", o.status },
 		{ "reason", o.reason }, { "http_version", o.http_version }, { "server", o.server }, { "content_type", o.content_type },
 		{ "title", o.title } };
@@ -53,6 +62,22 @@ ProbeJson probe_to_json(const HttpObservation& o, bool include_body) {
 		j["tls_info"] = std::move(t);
 	}
 	if (o.favicon_hash) j["favicon_hash"] = *o.favicon_hash;
+	if (!o.paths.empty()) {
+		j["paths"] = ProbeJson::array();
+		for (const PathResult& p : o.paths) {
+			ProbeJson pj = { { "path", p.path }, { "status", p.status } };
+			if (!p.content_type.empty()) pj["content_type"] = p.content_type;
+			if (!p.title.empty()) pj["title"] = p.title;
+			if (!p.redirect.empty()) pj["redirect"] = p.redirect;
+			if (p.error != FetchError::None) pj["error"] = to_string(p.error);
+			j["paths"].push_back(std::move(pj));
+		}
+	}
+	if (detections) {
+		j["detections"] = ProbeJson::array();
+		for (const sig::Detection& d : detections->found) j["detections"].push_back(detection_json(d));
+		j["signature_stats"] = { { "evaluated", detections->stats.signatures_evaluated }, { "regex_limit_hits", detections->stats.regex_limit_hits } };
+	}
 	if (o.error != FetchError::None) j["error"] = { { "kind", to_string(o.error) }, { "detail", o.error_detail } };
 	if (!o.banner.empty()) j["banner"] = o.banner;
 	j["requests"] = o.requests;
@@ -60,7 +85,7 @@ ProbeJson probe_to_json(const HttpObservation& o, bool include_body) {
 	return j;
 }
 
-std::string probe_to_text(const HttpObservation& o) {
+std::string probe_to_text(const HttpObservation& o, const Detections* detections) {
 	std::ostringstream out;
 	out << o.ip << ":" << o.port;
 	if (!o.host.empty()) out << " (" << printable(o.host) << ")";
@@ -111,6 +136,18 @@ std::string probe_to_text(const HttpObservation& o) {
 		out << "\n";
 	}
 	if (o.favicon_hash) out << "  favicon hash: " << *o.favicon_hash << "\n";
+	for (const PathResult& p : o.paths)
+		if (p.status != 0 && p.status != 404) out << "  path " << printable(p.path) << ": " << p.status << "\n";
+	if (detections) {
+		if (detections->found.empty()) out << "  detections: none\n";
+		for (const sig::Detection& d : detections->found) {
+			out << "  detected: " << printable(d.name);
+			if (!d.version.empty()) out << " " << printable(d.version);
+			out << "  [" << sig::to_string(d.category) << ", confidence " << static_cast<int>(d.confidence * 100 + 0.5) << "%]\n";
+		}
+		if (detections->stats.regex_limit_hits)
+			out << "  note: " << detections->stats.regex_limit_hits << " pattern search(es) hit the effort limit\n";
+	}
 	out << "  body: " << o.body_length << " bytes" << (o.body_truncated ? " (truncated)" : "") << ", sha256 " << o.body_sha256.substr(0, 16) << "...\n";
 	return out.str();
 }

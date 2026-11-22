@@ -10,7 +10,9 @@
 //  * Redirects are followed only when they stay on the same host (the address
 //    probed, or the host name given for it). A redirect to anywhere else is
 //    recorded and not followed, so a site cannot steer the scanner elsewhere.
-//  * Only GET, only `/` and the favicon: no logins, no forms, no guessing paths.
+//  * Only GET, only `/`, the favicon and a short, fixed list of plain paths the
+//    caller asked for (ProbeLimits::probe_paths, normally what signatures need):
+//    no logins, no forms, no query strings, no guessing.
 //  * Cookie values (often session secrets) are not stored unless asked for.
 //  * Requests are rate limited.
 
@@ -36,12 +38,23 @@ struct ProbeLimits {
 	double max_requests_per_second = 10;
 	bool fetch_favicon = true;
 	bool keep_cookie_values = false;
+	// Extra paths to fetch (GET, same final site, no redirects followed) once
+	// the main exchange succeeded. Each must pass valid_path() and have no '?'.
+	std::vector<std::string> probe_paths;
+	size_t path_max_body = 64 * 1024;
 	TransportLimits transport;
 };
 
 // A target the prober refuses to contact; what() says why.
 struct ProbeRefused : std::runtime_error {
 	using std::runtime_error::runtime_error;
+};
+
+// What an earlier scan (nmap) already said about the service; carried into the
+// evidence so signatures can use it. All of it is untrusted text.
+struct ServiceHint {
+	std::string name, product, version;
+	std::vector<std::string> hostnames;
 };
 
 struct ProbeTarget {
@@ -53,6 +66,7 @@ struct ProbeTarget {
 	uint16_t port = 0;
 	std::optional<bool> tls;  // unset: https on the usual TLS ports (443, 8443, ...), http otherwise
 	std::string host;         // Host header / SNI name; empty = the address itself
+	ServiceHint service;
 };
 
 struct Hop {
@@ -61,6 +75,18 @@ struct Hop {
 	std::string location;  // the Location header as sent, if any
 	bool followed = false;
 	std::string note;      // why a redirect was not followed
+};
+
+// One extra path that was fetched.
+struct PathResult {
+	std::string path;
+	int status = 0;               // 0: no HTTP response
+	std::string content_type;
+	std::string title;
+	std::string redirect;         // Location header, not followed
+	std::vector<Header> headers;
+	std::string body;
+	FetchError error = FetchError::None;
 };
 
 struct HttpObservation {
@@ -86,6 +112,8 @@ struct HttpObservation {
 	std::vector<Hop> redirects;
 	std::optional<TlsInfo> tls_info;
 	std::optional<int32_t> favicon_hash;
+	std::vector<PathResult> paths;
+	ServiceHint service;          // copied from the target
 
 	FetchError error = FetchError::None; // set together with a partial response, or alone
 	std::string error_detail;

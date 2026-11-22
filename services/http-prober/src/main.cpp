@@ -2,6 +2,8 @@
 // each target against the configured scope and ports before sending anything.
 #include <getopt.h>
 
+#include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -9,11 +11,15 @@
 
 #include "proculus/netutil/cidr.h"
 #include "proculus/results/results.hpp"
+#include "evidence.hpp"
+#include "proculus/sig/builtin.hpp"
+#include "proculus/sig/evidence_json.hpp"
 #include "prober.hpp"
 #include "report.hpp"
 
 enum { OPT_SCOPE = 256, OPT_PORTS, OPT_HOST, OPT_FORMAT, OPT_BODY, OPT_COOKIE_VALUES, OPT_NO_FAVICON, OPT_RATE, OPT_REDIRECTS,
-	OPT_CONNECT_TIMEOUT, OPT_TIMEOUT, OPT_MAX_BODY, OPT_ALLOW_RESERVED, OPT_STORE, OPT_RUN, OPT_HELP };
+	OPT_CONNECT_TIMEOUT, OPT_TIMEOUT, OPT_MAX_BODY, OPT_ALLOW_RESERVED, OPT_STORE, OPT_RUN, OPT_SIGNATURES, OPT_NO_BUILTIN_SIGS, OPT_NO_SIGS, OPT_NO_PATHS, OPT_MAX_PATHS,
+	OPT_MIN_CONFIDENCE, OPT_DUMP_EVIDENCE, OPT_HELP };
 
 static const option long_opts[] = {
 	{ "scope", required_argument, nullptr, OPT_SCOPE },
@@ -31,6 +37,13 @@ static const option long_opts[] = {
 	{ "allow-reserved", no_argument, nullptr, OPT_ALLOW_RESERVED },
 	{ "store", required_argument, nullptr, OPT_STORE },
 	{ "run", required_argument, nullptr, OPT_RUN },
+	{ "signatures", required_argument, nullptr, OPT_SIGNATURES },
+	{ "no-builtin-signatures", no_argument, nullptr, OPT_NO_BUILTIN_SIGS },
+	{ "no-signatures", no_argument, nullptr, OPT_NO_SIGS },
+	{ "no-paths", no_argument, nullptr, OPT_NO_PATHS },
+	{ "max-paths", required_argument, nullptr, OPT_MAX_PATHS },
+	{ "min-confidence", required_argument, nullptr, OPT_MIN_CONFIDENCE },
+	{ "dump-evidence", no_argument, nullptr, OPT_DUMP_EVIDENCE },
 	{ "help", no_argument, nullptr, OPT_HELP },
 	{ nullptr, 0, nullptr, 0 },
 };
@@ -49,7 +62,14 @@ static void usage(const char* argv0) {
 		<< "  --no-favicon         do not fetch the favicon\n"
 		<< "  --rate N             requests per second (default 10)     --max-redirects N (default 3)\n"
 		<< "  --connect-timeout MS (default 3000)   --timeout MS whole exchange (default 8000)   --max-body BYTES (default 131072)\n"
-		<< "  --allow-reserved     allow loopback/multicast/link-local addresses\n";
+		<< "  --allow-reserved     allow loopback/multicast/link-local addresses\n"
+		<< "signatures (what the service is, from what it shows):\n"
+		<< "  --signatures PATH    also load custom signatures from a JSON file or a directory of them (repeatable)\n"
+		<< "  --no-builtin-signatures   only use the custom ones     --no-signatures   do not detect anything\n"
+		<< "  --no-paths           never fetch extra paths (/wp-login.php, /phpmyadmin/, ...) for signatures\n"
+		<< "  --max-paths N        at most N extra paths per service, most valuable first (default 8)\n"
+		<< "  --min-confidence C   hide detections below C, 0..1 (default 0: each signature has its own threshold)\n"
+		<< "  --dump-evidence      print the facts signatures were matched against (JSON, to stderr)\n";
 }
 
 static double to_double(const char* s, const char* what) {
@@ -91,7 +111,10 @@ int main(int argc, char** argv) {
 	using namespace proculus;
 	ProbeLimits limits;
 	std::string host, store_dir, run_arg, format = "text";
-	bool include_body = false;
+	bool include_body = false, builtin_sigs = true, use_sigs = true, use_paths = true, dump_evidence = false;
+	size_t max_paths = 8;
+	double min_confidence = 0;
+	std::vector<std::string> sig_paths;
 	std::vector<std::string> positional;
 
 	try {
@@ -117,6 +140,16 @@ int main(int argc, char** argv) {
 			case OPT_ALLOW_RESERVED: limits.allow_reserved = true; break;
 			case OPT_STORE: store_dir = optarg; break;
 			case OPT_RUN: run_arg = optarg; break;
+			case OPT_SIGNATURES: sig_paths.push_back(optarg); break;
+			case OPT_NO_BUILTIN_SIGS: builtin_sigs = false; break;
+			case OPT_NO_SIGS: use_sigs = false; break;
+			case OPT_NO_PATHS: use_paths = false; break;
+			case OPT_MAX_PATHS: max_paths = static_cast<size_t>(to_double(optarg, "--max-paths")); break;
+			case OPT_MIN_CONFIDENCE:
+				min_confidence = to_double(optarg, "--min-confidence");
+				if (min_confidence < 0 || min_confidence > 1) throw std::invalid_argument("--min-confidence must be between 0 and 1");
+				break;
+			case OPT_DUMP_EVIDENCE: dump_evidence = true; break;
 			case OPT_HELP: usage(argv[0]); return 0;
 			default: throw std::invalid_argument(std::string("bad option: ") + argv[optind - 1]);
 			}
@@ -141,12 +174,37 @@ int main(int argc, char** argv) {
 			if (!run) throw std::runtime_error("no run " + std::to_string(id) + " in " + store_dir);
 			for (const HostRecord& h : run->hosts)
 				for (const ServiceRecord& s : h.services)
-					if (auto tls = web_service_scheme(s.name, s.port)) targets.emplace_back(h.ip, s.port, *tls, host);
+					if (auto tls = web_service_scheme(s.name, s.port)) {
+						targets.emplace_back(h.ip, s.port, *tls, host);
+						targets.back().service = { s.name, s.product, s.version, {} };
+						if (!h.hostname.empty()) targets.back().service.hostnames.push_back(h.hostname);
+					}
 			std::cerr << "run " << id << ": " << targets.size() << " web services\n";
 		} else {
 			for (const std::string& t : positional) targets.push_back(parse_target(t, host));
 		}
 		if (targets.empty()) throw std::invalid_argument("nothing to probe (see --help)");
+
+		// ---- signatures
+		sig::SignatureSet sigs;
+		if (use_sigs) {
+			if (builtin_sigs) sigs = sig::builtin_signatures();
+			bool bad = false;
+			for (const std::string& path : sig_paths) {
+				const std::filesystem::path fp(path);
+				std::error_code ec;
+				sig::LoadResult r = std::filesystem::is_directory(fp, ec) ? sigs.add_directory(fp) : sigs.add_file(fp);
+				for (const sig::Diagnostic& d : r.diagnostics) {
+					std::cerr << (d.level == sig::Diagnostic::Level::Error ? "error: " : "warning: ") << d.source;
+					if (!d.signature.empty()) std::cerr << ": " << d.signature;
+					if (!d.where.empty()) std::cerr << ": " << d.where;
+					std::cerr << ": " << d.message << "\n";
+				}
+				bad |= r.has_errors();
+			}
+			if (bad) throw std::invalid_argument("custom signatures have errors; fix them (see `signatures lint`) or leave them out");
+			if (use_paths && max_paths > 0) limits.probe_paths = sigs.required_paths(max_paths);
+		}
 
 		SocketTransport transport;
 		HttpProber prober(transport, limits);
@@ -156,8 +214,18 @@ int main(int argc, char** argv) {
 		for (const ProbeTarget& t : targets) {
 			try {
 				HttpObservation o = prober.probe(t);
-				if (format == "json") all.push_back(probe_to_json(o, include_body));
-				else std::cout << probe_to_text(o) << "\n";
+				Detections det;
+				const Detections* dp = nullptr;
+				if (use_sigs) {
+					const sig::Evidence ev = to_evidence(o);
+					det.found = sig::evaluate(sigs, ev, &det.stats);
+					det.found.erase(std::remove_if(det.found.begin(), det.found.end(), [&](const sig::Detection& d) { return d.confidence < min_confidence; }),
+						det.found.end());
+					dp = &det;
+					if (dump_evidence) std::cerr << sig::evidence_to_json(ev).dump(2, ' ', false, ProbeJson::error_handler_t::replace) << "\n";
+				}
+				if (format == "json") all.push_back(probe_to_json(o, include_body, dp));
+				else std::cout << probe_to_text(o, dp) << "\n";
 			} catch (const ProbeRefused& e) {
 				refused++;
 				if (format == "json") all.push_back({ { "ip", t.ip }, { "port", t.port }, { "refused", e.what() } });

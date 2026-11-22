@@ -66,6 +66,9 @@ HttpProber::HttpProber(HttpTransport& transport, ProbeLimits limits, RateGate ga
 	: transport_(transport), limits_(std::move(limits)), gate_(std::move(gate)) {
 	if (limits_.scope.empty()) throw std::invalid_argument("no scope configured: refusing to probe");
 	if (limits_.allowed_ports.empty()) throw std::invalid_argument("no allowed ports configured: refusing to probe");
+	for (const std::string& path : limits_.probe_paths)
+		if (!valid_path(path) || path.find('?') != std::string::npos || path.find('#') != std::string::npos)
+			throw std::invalid_argument("unusable probe path: " + path);
 	if (limits_.max_redirects < 0 || limits_.max_redirects > 10) throw std::invalid_argument("max_redirects must be 0..10");
 	if (!(limits_.max_requests_per_second > 0)) throw std::invalid_argument("request rate must be > 0");
 }
@@ -96,6 +99,7 @@ HttpObservation HttpProber::probe(const ProbeTarget& target) {
 	obs.ip = target.ip;
 	obs.port = target.port;
 	obs.host = host;
+	obs.service = target.service;
 
 	Url url;
 	url.scheme = target.tls.value_or(default_tls_port(target.port)) ? "https" : "http";
@@ -200,6 +204,34 @@ HttpObservation HttpProber::probe(const ProbeTarget& target) {
 					if (!html) obs.favicon_hash = favicon_hash(ex.response->body);
 				}
 			}
+		}
+	}
+
+	// ---- extra paths: only after a clean, complete main exchange (a struggling server gets no extra requests)
+	if (have_response && last.error == FetchError::None) {
+		std::set<std::string> done;
+		for (const std::string& path : limits_.probe_paths) {
+			if (!done.insert(path).second) continue;
+			TransportLimits tl = limits_.transport;
+			tl.max_body = limits_.path_max_body;
+			Url u = final_url;
+			u.path = path;
+			gate_.wait();
+			obs.requests++;
+			Exchange ex = transport_.get(endpoint_for(u), path, tl);
+			PathResult pr;
+			pr.path = path;
+			pr.error = ex.error;
+			if (ex.response) {
+				const HttpResponse& r = *ex.response;
+				pr.status = r.status;
+				pr.headers = r.headers;
+				if (const std::string* ct = find_header(r.headers, "Content-Type")) pr.content_type = ct->substr(0, 256);
+				if (const std::string* l = find_header(r.headers, "Location")) pr.redirect = l->substr(0, 2048);
+				pr.body = r.body;
+				if (looks_like_html(pr.content_type, r.body)) pr.title = extract_title(r.body);
+			}
+			obs.paths.push_back(std::move(pr));
 		}
 	}
 	obs.elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
