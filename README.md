@@ -132,6 +132,21 @@ work, but only as first-run defaults until the settings file exists. Without log
 (`--no-auth`) there is nobody to answer for a change, so the settings can only come
 from those flags.
 
+**Packaging (standalone program for macOS, Linux, Windows).** Each platform is built natively, on
+that platform, with one command. The result is one self-contained program, `proculus` (API, web UI,
+simulation and the command-line tools in a single file; the UI and the built-in signatures are inside),
+with launchers (`start.sh` and `start-simulation.sh`, or the `.cmd` versions), a README and examples,
+archived into `dist/` with a `SHA256SUMS` file. Each package is started on an emulated network and must
+serve the UI and accept the first-run setup before it is archived (`SKIP_SMOKE=1` to skip).
+
+| On | Run | Result |
+|---|---|---|
+| macOS | `scripts/package.sh macos` | `dist/proculus-<version>-macos-<arch>.tar.gz`; the third-party libraries are linked in, only system libraries are needed (checked). Needs MacPorts or Homebrew packages with static libraries (the script says which). Build on an Apple-silicon Mac for an arm64 package |
+| Linux | `scripts/package.sh linux` | `dist/proculus-<version>-linux-<arch>.tar.gz`; the program plus the shared libraries it needs in `lib/` (found through `$ORIGIN/lib`). Only glibc is not bundled, so it runs on the distribution it was built on and newer ones: build on the oldest one you support. Needs `build-essential cmake ninja-build pkg-config nlohmann-json3-dev libssl-dev libsodium-dev libpq-dev libpcre2-dev libexpat1-dev zlib1g-dev` (Debian/Ubuntu) |
+| Windows | `powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1` | `dist\proculus-<version>-windows-<arch>.zip`; built under Cygwin (the program uses POSIX calls), which the script installs; the few Cygwin DLLs are bundled next to `proculus.exe`. The whole output is also in `dist\windows-build.log` |
+
+Real scans need nmap on the machine that runs the package; the simulation needs nothing.
+
 **Simulation.** `gateway serve --simulate --store results-sim` runs the whole system on an
 emulated network (`--sim-networks`, `--sim-seed`): scans from the UI go through the real
 controller, planner, runner and web stage, but the hosts, services and web servers are made up

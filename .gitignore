@@ -1,4 +1,13 @@
 build/
+build-*/
 .cache/
+dist/
+
 compile_commands.json
 .DS_Store
+
+agent.txt
+spec.txt
+lab/
+
+results*/

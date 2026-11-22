@@ -1,0 +1,3 @@
+# Shell scripts must keep LF line endings (they run under bash, including Cygwin on Windows);
+# the Windows launchers in the package are given CRLF by scripts/package.sh.
+*.sh text eol=lf
