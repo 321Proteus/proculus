@@ -23,6 +23,8 @@ add_subdirectory(libs/db)
 add_subdirectory(libs/timing)
 add_subdirectory(libs/results)
 add_subdirectory(libs/signatures)
+add_subdirectory(libs/insight)
+
 add_subdirectory(services/gateway)
 add_subdirectory(services/planner)
 add_subdirectory(services/scan-worker)
