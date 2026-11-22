@@ -3,6 +3,7 @@
 #include <getopt.h>
 
 #include <csignal>
+#include <thread>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -19,14 +20,17 @@
 #include "scan_control.hpp"
 #include "server.hpp"
 #include "token_guard.hpp"
+#include "ui_server.hpp"
 
 namespace proculus {
 
 namespace {
 
 WebServer* g_server = nullptr;
+UiServer* g_ui = nullptr;
 
 void on_signal(int) {
+	if (g_ui) g_ui->stop();
 	if (g_server) g_server->stop(); // stop() only flips the listener off; safe enough for a shutdown handler
 }
 
@@ -38,6 +42,9 @@ void usage() {
 	          << "  --db URL          read and write runs in Postgres instead of --store (or $PROCULUS_DB_URL; keys from $PROCULUS_KEY / $PROCULUS_KEY_FILE)\n"
 	          << "  --db-migrations D where the SQL migrations are (default $PROCULUS_MIGRATIONS_DIR)\n"
 #endif
+	          << "web UI (started in this same process, so one command is enough; --no-ui if the UI runs as its own service)\n"
+	          << "  --ui-port N       port of the web UI (default 8080)   --ui-bind ADDR  address of the web UI (default 127.0.0.1)\n"
+	          << "  --no-ui           serve only the API\n"
 	          << "login (on by default: the first visit asks for the setup token printed here and creates the administrator)\n"
 	          << "  --accounts DIR    where accounts are kept without a database (default: DIR/accounts inside --store)\n"
 	          << "  --no-auth         NO LOGIN: anyone who can reach the server can read everything (local use only)\n"
@@ -59,7 +66,7 @@ void usage() {
 
 int serve_command(int argc, char** argv) {
 	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_DB, OPT_DB_MIGRATIONS, OPT_AUTH, OPT_NO_AUTH, OPT_ACCOUNTS, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
-		OPT_SCAN_ALLOW_RESERVED, OPT_SCAN_CEILING, OPT_SCAN_CONFIG, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
+		OPT_SCAN_ALLOW_RESERVED, OPT_UI_PORT, OPT_UI_BIND, OPT_NO_UI, OPT_SCAN_CEILING, OPT_SCAN_CONFIG, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
 	static const option opts[] = {
 		{"store", required_argument, nullptr, OPT_STORE}, {"port", required_argument, nullptr, OPT_PORT},
 		{"bind", required_argument, nullptr, OPT_BIND},   {"allow-host", required_argument, nullptr, OPT_ALLOW_HOST},
@@ -76,6 +83,9 @@ int serve_command(int argc, char** argv) {
 		{"scan-allow-privileged", no_argument, nullptr, OPT_SCAN_PRIVILEGED},
 		{"scan-no-web", no_argument, nullptr, OPT_SCAN_NO_WEB},
 		{"scan-allow-reserved", no_argument, nullptr, OPT_SCAN_ALLOW_RESERVED},
+		{"ui-port", required_argument, nullptr, OPT_UI_PORT},
+		{"ui-bind", required_argument, nullptr, OPT_UI_BIND},
+		{"no-ui", no_argument, nullptr, OPT_NO_UI},
 		{"scan-ceiling", required_argument, nullptr, OPT_SCAN_CEILING},
 		{"scan-config", required_argument, nullptr, OPT_SCAN_CONFIG},
 		{"scan-nmap", required_argument, nullptr, OPT_SCAN_NMAP},
@@ -83,6 +93,8 @@ int serve_command(int argc, char** argv) {
 		{"help", no_argument, nullptr, OPT_HELP}, {nullptr, 0, nullptr, 0},
 	};
 	ServerConfig cfg;
+	UiConfig ui;
+	bool with_ui = true;
 	ScanPolicy policy;
 	std::string store_dir, db_url, db_migrations;
 	bool use_auth = true; // login is the default; --no-auth turns it off
@@ -110,6 +122,9 @@ int serve_command(int argc, char** argv) {
 			case OPT_SCAN_PRIVILEGED: policy.allow_privileged = true; break;
 			case OPT_SCAN_NO_WEB: policy.allow_web = false; break;
 			case OPT_SCAN_ALLOW_RESERVED: policy.allow_reserved = true; break;
+			case OPT_UI_PORT: ui.port = web::parse_port(optarg); break;
+			case OPT_UI_BIND: ui.bind = optarg; break;
+			case OPT_NO_UI: with_ui = false; break;
 			case OPT_SCAN_CEILING: policy.ceiling = optarg; break;
 			case OPT_SCAN_CONFIG: scan_config = optarg; break;
 			case OPT_SCAN_NMAP: policy.nmap_path = optarg; break;
@@ -197,12 +212,29 @@ int serve_command(int argc, char** argv) {
 		}
 		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get());
 		const int port = server.bind();
+		std::unique_ptr<UiServer> ui_server;
+		int ui_port = 0;
+		if (with_ui) { // the UI talks to this API over loopback, like a separate UI service would
+			ui.api = web::Upstream{"127.0.0.1", port};
+			ui.allowed_hosts = cfg.allowed_hosts;
+			ui_server = std::make_unique<UiServer>(ui);
+			ui_port = ui_server->bind(); // fails (and so does the start) when the port is taken
+		}
 		g_server = &server;
+		g_ui = ui_server.get();
 		std::signal(SIGINT, on_signal);
 		std::signal(SIGTERM, on_signal);
-		std::cerr << "proculus: serving " << store_name << " on http://" << cfg.bind << ":" << port << "/ (API, " << (auth_backend ? "login required" : "NO LOGIN") << ")\n";
+		std::cerr << "proculus: serving " << store_name << " (API on http://" << cfg.bind << ":" << port << "/, " << (auth_backend ? "login required" : "NO LOGIN") << ")\n";
+		std::thread ui_thread;
+		if (ui_server) {
+			ui_thread = std::thread([&] { ui_server->run(); });
+			std::cerr << "proculus: open the UI at  http://" << ui.bind << ":" << ui_port << "/\n";
+		}
 		server.run();
 		g_server = nullptr;
+		if (ui_server) ui_server->stop();
+		if (ui_thread.joinable()) ui_thread.join();
+		g_ui = nullptr;
 		return 0;
 	} catch (const std::exception& e) {
 		std::cerr << "error: " << e.what() << "\n";

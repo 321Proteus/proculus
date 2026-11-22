@@ -6,7 +6,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(gateway_core PUBLIC Threads::Threads)
 
 add_executable(gateway src/main.cpp src/serve.cpp)
-target_link_libraries(gateway PRIVATE gateway_core proculus_common)
+target_link_libraries(gateway PRIVATE gateway_core ui_core proculus_common) # ui_core: `gateway serve` also serves the web UI
 if(TARGET proculus_pgstore)
 	target_link_libraries(gateway PRIVATE proculus_pgstore)
 	target_compile_definitions(gateway PRIVATE PROCULUS_HAVE_PGSTORE)

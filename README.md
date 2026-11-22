@@ -85,14 +85,14 @@ docker compose run --rm exporter --store /data show latest --format csv
 
 ## Web UI
 
-Two small services: `gateway serve` is the read-only JSON API over the saved
-runs, and `ui` serves the pages and passes the page's `/api/` requests on to it.
+`gateway serve` is the JSON API over the saved runs and, in the same process, the web UI
+(the pages, which pass their `/api/` requests on to the API). The `ui` program is the same
+UI as a separate service, for when the two should run apart (Docker).
 
 ```sh
 ./build/services/gateway/gateway --store results --window 22:00-06:00        # make some runs
-./build/services/gateway/gateway serve --store results                        # the API, on 127.0.0.1:8081
-./build/services/ui/ui                                                        # the UI, http://127.0.0.1:8080
-docker compose --profile ui up --build ui                                     # both, in Docker (http://localhost:8080)
+./build/services/gateway/gateway serve --store results                        # API on 127.0.0.1:8081 and the UI on http://127.0.0.1:8080
+docker compose --profile ui up --build ui                                     # the same, as two services in Docker (http://localhost:8080)
 ```
 
 The layout and look follow the Python build (`PROCULUS_SCANNER/Proculus_NEW.py`): a header with the
@@ -123,6 +123,8 @@ survive a restart; every change is in the audit log. The form can only choose
 targets inside that scope and values under those limits, and one scan runs at a
 time. It uses the same runner as the command line, with the same safety checks.
 
+`gateway serve` starts the web UI as well (`--ui-port`, default 8080; the API is on `--port`, default 8081), so one command is enough. The UI listens on `127.0.0.1` only (`--ui-bind` to change it); `--no-ui` serves just the API, for the Docker setup where the UI is its own service. A port that is already taken stops the start with an error instead of being shared.
+
 The one thing a UI setting can not change is the operator's ceiling,
 `--scan-ceiling 192.168.0.0/16` (optional): the scope is refused if it goes beyond it.
 `--enable-scans`, `--scan-scope`, `--scan-ports` and the other `--scan-*` limits still
@@ -140,8 +142,8 @@ addresses and ports to the scope instead of typing them.
 
 ```sh
 ./build/services/gateway/gateway serve --store results --scan-ceiling 192.168.1.0/24
-./build/services/ui/ui
-# sign in as the administrator, then Admin > Scanning
+# open http://127.0.0.1:8080/ (the UI is part of the same process), sign in as the
+# administrator with the setup token printed in the terminal, then Admin > Scanning
 ```
 
 With login off (`--no-auth`), starting, planning and stopping scans need that control
@@ -204,8 +206,7 @@ stops anyone else who can reach the page from claiming the account first; setup 
 wrong tokens are throttled).
 
 ```sh
-./build/services/gateway/gateway serve --store results        # prints the setup token; open the UI and use it
-./build/services/ui/ui                                        # http://127.0.0.1:8080
+./build/services/gateway/gateway serve --store results        # prints the setup token; open http://127.0.0.1:8080 and use it
 
 # or create the first administrator from the command line instead
 ./build/services/gateway/gateway user add your.name --role admin --store results   # asks for the password

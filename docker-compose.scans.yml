@@ -19,6 +19,7 @@ services:
       - --port=8081
       - --store=/data
       - --allow-host=api
+      - --no-ui
       - --enable-scans
       - --scan-scope=${SCAN_SCOPE:?set SCAN_SCOPE to the networks that may be scanned}
       - --scan-ports=${SCAN_PORTS:?set SCAN_PORTS to the ports that may be probed}

@@ -1,34 +1,26 @@
 {
 	"version": "0.2.0",
 	"configurations": [
-		// The two services of the web UI. Start them together with the compound below.
-		// The API prints a setup token the first time (no accounts yet): enter it in the browser.
+		// One process: the API (port 8082) and the web UI (port 8081). Open http://127.0.0.1:8081
+		// The first time (no accounts yet) the terminal prints a setup token: enter it in the browser.
+		// Scans are switched on in the UI (Admin > Scanning); --scan-ceiling is the most an administrator can ever allow (private networks and this machine).
 		{
-			"name": "Proculus: gateway (API)",
+			"name": "Proculus",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/services/gateway/gateway",
-			// Scans are switched on in the UI (Admin > Scanning); --scan-ceiling is the most an administrator can ever allow (private networks and this machine).
-			"args": ["serve", "--store", "${workspaceFolder}/results", "--port", "8082", "--scan-ceiling", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"],
+			"args": ["serve", "--store", "${workspaceFolder}/results", "--port", "8082", "--ui-port", "8081", "--scan-ceiling", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"],
 			"cwd": "${workspaceFolder}",
-			"terminal": "integrated"
-		},
-		{
-			"name": "Proculus: ui (web)",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceFolder}/build/services/ui/ui",
-			"args": ["--api", "http://127.0.0.1:8082", "--port", "8081"],
-			"cwd": "${workspaceFolder}",
+			"preLaunchTask": "cmake: build",
 			"terminal": "integrated"
 		},
 		// A first run every time: results-dev is wiped (task "proculus: fresh start"), so the setup token is asked for again.
 		{
-			"name": "Proculus: gateway (API, fresh data)",
+			"name": "Proculus (fresh data)",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/services/gateway/gateway",
-			"args": ["serve", "--store", "${workspaceFolder}/results-dev", "--port", "8082", "--scan-ceiling", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"],
+			"args": ["serve", "--store", "${workspaceFolder}/results-dev", "--port", "8082", "--ui-port", "8081", "--scan-ceiling", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"],
 			"cwd": "${workspaceFolder}",
 			"preLaunchTask": "proculus: fresh start (results-dev)",
 			"terminal": "integrated"
@@ -43,20 +35,6 @@
 			"cwd": "${workspaceFolder}",
 			"preLaunchTask": "cmake: build",
 			"terminal": "integrated"
-		}
-	],
-	"compounds": [
-		{
-			// Builds once, then starts the API and the UI. Open http://127.0.0.1:8081
-			"name": "Proculus: gateway + ui",
-			"configurations": ["Proculus: gateway (API)", "Proculus: ui (web)"],
-			"preLaunchTask": "cmake: build",
-			"stopAll": true
-		},
-		{
-			"name": "Proculus: gateway + ui (fresh data)",
-			"configurations": ["Proculus: gateway (API, fresh data)", "Proculus: ui (web)"],
-			"stopAll": true
 		}
 	]
 }

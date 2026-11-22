@@ -70,6 +70,11 @@ static httplib::Headers forwarded_headers(const httplib::Request& req, bool& ok)
 
 UiServer::UiServer(UiConfig config) : config_(std::move(config)), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
+	// Only SO_REUSEADDR (the library's default is SO_REUSEPORT, which lets a second server share a taken port without any error)
+	svr.set_socket_options([](socket_t sock) {
+		const int yes = 1;
+		setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&yes), sizeof yes);
+	});
 
 	std::vector<std::string> allowed = web::default_allowed_hosts();
 	for (const std::string& h : config_.allowed_hosts) allowed.push_back(lower(h));

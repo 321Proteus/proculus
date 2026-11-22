@@ -18,7 +18,7 @@ services:
     build:
       context: .
       target: gateway
-    command: ["serve", "--bind", "0.0.0.0", "--port", "8081", "--store", "/data", "--allow-host", "api"]
+    command: ["serve", "--bind", "0.0.0.0", "--port", "8081", "--store", "/data", "--allow-host", "api", "--no-ui"]
     volumes:
       - results:/data # writable: the accounts are kept in /data/accounts (without a database)
     profiles: ["ui"]
