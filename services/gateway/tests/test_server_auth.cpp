@@ -183,6 +183,7 @@ int main() {
 	assert(c.Get("/api/users", hdr(viewer))->status == 403 && c.Get("/api/audit", hdr(viewer))->status == 403 && c.Get("/api/roles", hdr(viewer))->status == 403);
 	assert(c.Post("/api/scan", hdr(viewer), Json{{"targets", {"10.20.0.1"}}}.dump(), "application/json")->status == 403);
 	assert(c.Post("/api/scan/stop", hdr(viewer), "{}", "application/json")->status == 403);
+	assert(c.Get("/api/scan/config", hdr(viewer))->status == 403 && c.Post("/api/scan/config", hdr(viewer), Json{{"scope", "0.0.0.0/0"}}.dump(), "application/json")->status == 403);
 	assert(c.Post("/api/users", hdr(viewer), Json{{"username", "evil.user"}, {"password", "long enough pw"}, {"role", "admin"}}.dump(), "application/json")->status == 403);
 	auto me = Json::parse(c.Get("/api/me", hdr(viewer))->body)["user"];
 	assert(me["username"] == "vic" && me["role"] == "viewer" && me["permissions"].size() == 2);
@@ -192,6 +193,8 @@ int main() {
 	// ---- a manager runs scans, with no control token
 	const std::string manager = session("mia", "mia-password-1");
 	assert(c.Get("/api/users", hdr(manager))->status == 403);
+	// running scans is not changing what scans may do
+	assert(c.Get("/api/scan/config", hdr(manager))->status == 403 && c.Post("/api/scan/config", hdr(manager), Json{{"scope", "0.0.0.0/0"}}.dump(), "application/json")->status == 403);
 	assert(c.Post("/api/scan", hdr(manager), Json{{"targets", {"8.8.8.8"}}}.dump(), "application/json")->status == 400); // the policy still applies
 	auto started = c.Post("/api/scan", hdr(manager), Json{{"targets", {"10.20.0.0/24"}}}.dump(), "application/json");
 	assert(started && started->status == 200);
@@ -200,6 +203,16 @@ int main() {
 
 	// ---- an administrator manages users and roles
 	const std::string admin = session("ann", "ann-password-1");
+	// ... and the scan settings: read, changed (validated), and written to the audit trail
+	assert(Json::parse(c.Get("/api/scan/config", hdr(admin))->body)["scope"] == "10.20.0.0/22");
+	assert(c.Post("/api/scan/config", hdr(admin), Json{{"allowed_ports", "x"}}.dump(), "application/json")->status == 400);
+	assert(c.Post("/api/scan/config", hdr(admin), Json{{"max_rate", 80}}.dump(), "application/json")->status == 200 && scans.settings()["max_rate"] == 80);
+	{
+		bool logged = false;
+		for (const Json& e : Json::parse(c.Get("/api/audit", hdr(admin))->body))
+			if (e["action"] == "scan settings changed" && e["user"] == "ann") logged = true;
+		assert(logged);
+	}
 	assert(Json::parse(c.Get("/api/users", hdr(admin))->body).size() == 3);
 	assert(Json::parse(c.Get("/api/roles", hdr(admin))->body).size() == 3);
 	auto made = c.Post("/api/users", hdr(admin), Json{{"username", "new.user"}, {"password", "a long password"}, {"role", "viewer"}}.dump(), "application/json");

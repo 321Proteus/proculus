@@ -71,6 +71,7 @@ const Rule kRules[] = {
 	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/scan", "data.read"}, {"GET", "/api/edits", "data.read"},
 	{"POST", "/api/edits", "data.edit"}, {"POST", "/api/edits/clear", "data.edit"},
 	{"POST", "/api/scan", "scan.run"}, {"POST", "/api/scan/plan", "scan.run"}, {"POST", "/api/scan/stop", "scan.run"},
+	{"GET", "/api/scan/config", "config.manage"}, {"POST", "/api/scan/config", "config.manage"},
 	{"GET", "/api/users", "users.manage"}, {"POST", "/api/users", "users.manage"}, {"POST", "/api/users/update", "users.manage"},
 	{"GET", "/api/roles", "users.manage"}, {"POST", "/api/roles", "users.manage"}, {"POST", "/api/roles/delete", "users.manage"}, {"GET", "/api/audit", "users.manage"},
 };
@@ -224,6 +225,24 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			scans_->stop();
 			return scans_->status();
 		});
+	});
+	// scan settings: only with login and the config.manage permission (without login there is nobody to answer for a change)
+	svr.Get("/api/scan/config", [this](const httplib::Request&, httplib::Response& res) {
+		if (!scans_ || !auth_) return send_json(res, 403, {{"error", "scan settings need login (and are not available on this server)"}});
+		api_route(res, [&] { return scans_->settings(); });
+	});
+	svr.Post("/api/scan/config", [this, current_user](const httplib::Request& req, httplib::Response& res) {
+		if (!scans_ || !auth_) return send_json(res, 403, {{"error", "scan settings need login (and are not available on this server)"}});
+		const auto body = json_body(req, res);
+		if (!body) return;
+		api_route(res, [&] {
+			scans_->configure(*body);
+			return scans_->settings();
+		});
+		if (res.status == 200) {
+			const auto user = current_user(req);
+			auth_->record(user ? &*user : nullptr, "scan settings changed", "scan", clip(body->dump(), 300), req.remote_addr);
+		}
 	});
 	svr.Get("/api/hosts", [this](const httplib::Request&, httplib::Response& res) { api_route(res, [&] { return api_.hosts(); }); });
 

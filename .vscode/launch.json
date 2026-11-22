@@ -8,7 +8,8 @@
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/services/gateway/gateway",
-			"args": ["serve", "--store", "${workspaceFolder}/results", "--port", "8082"],
+			// Scans are switched on in the UI (Admin > Scanning); --scan-ceiling is the most an administrator can ever allow (private networks and this machine).
+			"args": ["serve", "--store", "${workspaceFolder}/results", "--port", "8082", "--scan-ceiling", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"],
 			"cwd": "${workspaceFolder}",
 			"terminal": "integrated"
 		},
@@ -18,20 +19,6 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build/services/ui/ui",
 			"args": ["--api", "http://127.0.0.1:8082", "--port", "8081"],
-			"cwd": "${workspaceFolder}",
-			"terminal": "integrated"
-		},
-		// The same, with starting scans from the UI allowed against this machine only (for trying the New scan form).
-		{
-			"name": "Proculus: gateway (API, scans on 127.0.0.1)",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceFolder}/build/services/gateway/gateway",
-			"args": [
-				"serve", "--store", "${workspaceFolder}/results", "--port", "8082",
-				"--enable-scans", "--scan-scope", "127.0.0.1", "--scan-ports", "22,80,443,3000,5000,8000,8080,8443",
-				"--scan-allow-reserved"
-			],
 			"cwd": "${workspaceFolder}",
 			"terminal": "integrated"
 		},
@@ -52,12 +39,6 @@
 			// Builds once, then starts the API and the UI. Open http://127.0.0.1:8081
 			"name": "Proculus: gateway + ui",
 			"configurations": ["Proculus: gateway (API)", "Proculus: ui (web)"],
-			"preLaunchTask": "cmake: build",
-			"stopAll": true
-		},
-		{
-			"name": "Proculus: gateway + ui (scans on 127.0.0.1)",
-			"configurations": ["Proculus: gateway (API, scans on 127.0.0.1)", "Proculus: ui (web)"],
 			"preLaunchTask": "cmake: build",
 			"stopAll": true
 		}

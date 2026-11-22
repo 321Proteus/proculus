@@ -1,10 +1,14 @@
 #include "scan_control.hpp"
 
 #include <algorithm>
+#include <fstream>
+#include <filesystem>
 #include <set>
 #include <sstream>
 #include <streambuf>
 #include <thread>
+
+#include <sys/stat.h>
 
 #include "planner.hpp"
 #include "proculus/netutil/ipset.hpp"
@@ -108,6 +112,69 @@ Json request_json(const ScanRequest& r) {
 		{"web", r.web}, {"privileged", r.privileged}};
 }
 
+// Throws std::invalid_argument saying what is wrong with an enabled policy.
+void check_policy(const ScanPolicy& p) {
+	if (!p.enabled) return;
+	if (p.scope.empty()) throw std::invalid_argument("give the scope: the addresses scans may touch");
+	if (p.allowed_ports.empty()) throw std::invalid_argument("give the ports scans may probe");
+	if (p.max_workers < 1 || p.max_workers > 64) throw std::invalid_argument("workers must be 1..64");
+	if (p.max_rate < 1 || p.max_rate > 100000) throw std::invalid_argument("the packet rate must be 1..100000");
+	IpSet scope;
+	PortSet ports;
+	try {
+		scope.add_list(p.scope);
+	} catch (const std::invalid_argument&) {
+		throw std::invalid_argument("the scope is not a list of IPs, CIDRs or ranges");
+	}
+	try {
+		ports.add_list(p.allowed_ports);
+	} catch (const std::invalid_argument&) {
+		throw std::invalid_argument("the allowed ports are not a port list such as 22,80,443");
+	}
+	if (!p.ceiling.empty()) {
+		IpSet ceiling;
+		ceiling.add_list(p.ceiling); // checked at start-up
+		scope.subtract(ceiling);
+		if (scope.count() > 0) throw std::invalid_argument("the scope goes beyond what this server allows (" + p.ceiling + ")");
+	}
+}
+
+Json settings_json(const ScanPolicy& p) {
+	return {{"enabled", p.enabled}, {"scope", p.scope}, {"allowed_ports", p.allowed_ports}, {"max_workers", p.max_workers}, {"max_rate", p.max_rate},
+		{"allow_privileged", p.allow_privileged}, {"allow_web", p.allow_web}, {"allow_reserved", p.allow_reserved}};
+}
+
+std::string text_setting(const Json& v, const char* key) {
+	if (!v.is_string()) bad(std::string("\"") + key + "\" must be text");
+	const std::string s = trim(v.get<std::string>());
+	if (s.size() > 500) bad(std::string("\"") + key + "\" is too long");
+	for (unsigned char c : s)
+		if (c < 0x20 || c == 0x7f) bad(std::string("\"") + key + "\" has control characters");
+	return s;
+}
+
+bool bool_setting(const Json& v, const char* key) {
+	if (!v.is_boolean()) bad(std::string("\"") + key + "\" must be true or false");
+	return v.get<bool>();
+}
+
+// The policy with the keys present in `body` applied (nothing is validated here).
+ScanPolicy apply_settings(ScanPolicy p, const Json& body) {
+	if (!body.is_object()) bad("the settings must be a JSON object");
+	static const std::set<std::string> known = {"enabled", "scope", "allowed_ports", "max_workers", "max_rate", "allow_privileged", "allow_web", "allow_reserved"};
+	for (auto it = body.begin(); it != body.end(); ++it)
+		if (!known.count(it.key())) bad("unknown setting \"" + it.key().substr(0, 40) + "\"");
+	if (auto it = body.find("enabled"); it != body.end()) p.enabled = bool_setting(*it, "enabled");
+	if (auto it = body.find("scope"); it != body.end()) p.scope = text_setting(*it, "scope");
+	if (auto it = body.find("allowed_ports"); it != body.end()) p.allowed_ports = text_setting(*it, "allowed_ports");
+	if (body.contains("max_workers")) p.max_workers = static_cast<unsigned>(whole(body, "max_workers", p.max_workers, 1, 64));
+	if (body.contains("max_rate")) p.max_rate = static_cast<int>(whole(body, "max_rate", p.max_rate, 1, 100000));
+	if (auto it = body.find("allow_privileged"); it != body.end()) p.allow_privileged = bool_setting(*it, "allow_privileged");
+	if (auto it = body.find("allow_web"); it != body.end()) p.allow_web = bool_setting(*it, "allow_web");
+	if (auto it = body.find("allow_reserved"); it != body.end()) p.allow_reserved = bool_setting(*it, "allow_reserved");
+	return p;
+}
+
 } // namespace
 
 ScanRequest parse_scan_request(const Json& body) {
@@ -132,7 +199,12 @@ ScanRequest parse_scan_request(const Json& body) {
 }
 
 struct ScanController::Impl {
-	ScanPolicy policy;
+	ScanPolicy policy; // guarded by m (an administrator can change it while requests are validated)
+	std::filesystem::path persist_file;
+	ScanPolicy snapshot() const {
+		std::lock_guard<std::mutex> l(m);
+		return policy;
+	}
 	ResultStore* store;
 	RunnerDeps base;
 	SystemClock own_clock;
@@ -149,6 +221,7 @@ struct ScanController::Impl {
 	Json last = nullptr;
 
 	RunnerConfig validate(const ScanRequest& r) const {
+		const ScanPolicy policy = snapshot();
 		if (!policy.enabled) throw ApiError(403, "scans are not enabled on this server");
 		if (r.targets.empty()) bad("give at least one target");
 		if (r.workers > policy.max_workers) bad("at most " + std::to_string(policy.max_workers) + " workers are allowed");
@@ -247,19 +320,16 @@ ScanController::ScanController(ScanPolicy policy, ResultStore* store, RunnerDeps
 	i.policy = std::move(policy);
 	i.store = store;
 	i.base = std::move(base);
-	if (i.policy.enabled) {
-		if (!i.store) throw std::invalid_argument("scans need a result store");
-		if (i.policy.scope.empty() || i.policy.allowed_ports.empty()) throw std::invalid_argument("scans need a scope and allowed ports");
-		if (i.policy.max_workers < 1 || i.policy.max_rate < 1) throw std::invalid_argument("scan ceilings must be at least 1");
-		IpSet scope;
-		PortSet ports;
+	if (!i.policy.ceiling.empty()) {
+		IpSet probe;
 		try {
-			scope.add_list(i.policy.scope);
-			ports.add_list(i.policy.allowed_ports);
+			probe.add_list(i.policy.ceiling);
 		} catch (const std::invalid_argument&) {
-			throw std::invalid_argument("the scan scope or allowed ports are invalid");
+			throw std::invalid_argument("the scan ceiling is not a list of IPs, CIDRs or ranges");
 		}
 	}
+	if (i.policy.enabled && !i.store) throw std::invalid_argument("scans need a result store");
+	check_policy(i.policy);
 }
 
 ScanController::~ScanController() {
@@ -271,14 +341,81 @@ ScanController::~ScanController() {
 	if (impl_->worker.joinable()) impl_->worker.join();
 }
 
-bool ScanController::enabled() const { return impl_->policy.enabled; }
+bool ScanController::enabled() const { return impl_->snapshot().enabled; }
+
+Json ScanController::settings() const {
+	const ScanPolicy p = impl_->snapshot();
+	Json j = settings_json(p);
+	j["ceiling"] = p.ceiling;
+	return j;
+}
+
+void ScanController::configure(const Json& body) {
+	Impl& i = *impl_;
+	ScanPolicy next = apply_settings(i.snapshot(), body);
+	if (next.enabled && !i.store) bad("scans need a result store");
+	try {
+		check_policy(next);
+	} catch (const std::invalid_argument& e) {
+		bad(e.what());
+	}
+	std::lock_guard<std::mutex> l(i.m);
+	if (!i.persist_file.empty()) {
+		try {
+			std::filesystem::create_directories(i.persist_file.parent_path());
+			const std::filesystem::path tmp = i.persist_file.string() + ".tmp";
+			{
+				std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+				if (!out) throw std::runtime_error("cannot write " + tmp.string());
+				::chmod(tmp.c_str(), 0600);
+				out << settings_json(next).dump(2) << "\n";
+				out.flush();
+				if (!out) throw std::runtime_error("cannot write " + tmp.string());
+			}
+			std::filesystem::rename(tmp, i.persist_file);
+		} catch (const std::exception& e) {
+			throw ApiError(500, std::string("the settings could not be saved: ") + e.what());
+		}
+	}
+	i.policy = std::move(next);
+}
+
+void ScanController::persist_to(std::filesystem::path file) {
+	std::lock_guard<std::mutex> l(impl_->m);
+	impl_->persist_file = std::move(file);
+}
+
+bool ScanController::load_settings(std::string* problem) {
+	Impl& i = *impl_;
+	std::filesystem::path file;
+	{
+		std::lock_guard<std::mutex> l(i.m);
+		file = i.persist_file;
+	}
+	std::error_code ec;
+	if (file.empty() || !std::filesystem::exists(file, ec)) return false;
+	try {
+		std::ifstream in(file, std::ios::binary);
+		std::stringstream text;
+		text << in.rdbuf();
+		ScanPolicy next = apply_settings(i.snapshot(), Json::parse(text.str()));
+		check_policy(next);
+		std::lock_guard<std::mutex> l(i.m);
+		i.policy = std::move(next);
+		return true;
+	} catch (const std::exception& e) { // ApiError, invalid_argument or a JSON error: keep what we have, scans stay as they were (off)
+		if (problem) *problem = std::string(e.what());
+		return false;
+	}
+}
 
 Json ScanController::status() const {
 	const Impl& i = *impl_;
-	Json j = {{"enabled", i.policy.enabled}};
-	if (!i.policy.enabled) return j;
-	j["policy"] = {{"scope", i.policy.scope}, {"allowed_ports", i.policy.allowed_ports}, {"max_workers", i.policy.max_workers}, {"max_rate", i.policy.max_rate},
-		{"allow_privileged", i.policy.allow_privileged}, {"allow_web", i.policy.allow_web}};
+	const ScanPolicy policy = i.snapshot();
+	Json j = {{"enabled", policy.enabled}};
+	if (!policy.enabled) return j;
+	j["policy"] = {{"scope", policy.scope}, {"allowed_ports", policy.allowed_ports}, {"max_workers", policy.max_workers}, {"max_rate", policy.max_rate},
+		{"allow_privileged", policy.allow_privileged}, {"allow_web", policy.allow_web}};
 	std::lock_guard<std::mutex> l(i.m);
 	j["state"] = i.stopping ? "stopping" : i.running ? "running" : "idle";
 	if (i.running) {

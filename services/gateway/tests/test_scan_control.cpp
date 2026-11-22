@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <thread>
 
 #include "scan_control.hpp"
@@ -207,10 +208,87 @@ static void test_stop_and_one_at_a_time() {
 	ctl.start(req({"10.20.0.0/24"}));
 }
 
+// Scan settings: changed at run time, kept under the operator's ceiling, saved to a file.
+void test_settings() {
+	FileResultStore store(scratch("settings"));
+	const fs::path file = scratch("settings-file") / "scan-config.json";
+	ScanPolicy p;
+	p.ceiling = "10.20.0.0/16";
+	ScanController ctl(p, &store);
+	ctl.persist_to(file);
+
+	// off by default; the settings say what the ceiling is
+	assert(!ctl.enabled() && ctl.settings()["enabled"] == false && ctl.settings()["ceiling"] == "10.20.0.0/16");
+	assert(!ctl.load_settings()); // no file yet
+
+	// switching on needs a scope and ports, and nothing changes when it is refused
+	assert(api_error(400, [&] { ctl.configure(Json{{"enabled", true}}); }, "scope"));
+	assert(api_error(400, [&] { ctl.configure(Json{{"enabled", true}, {"scope", "10.20.0.0/24"}}); }, "ports"));
+	assert(api_error(400, [&] { ctl.configure(Json{{"scope", "not an address"}, {"allowed_ports", "22"}, {"enabled", true}}); }));
+	assert(api_error(400, [&] { ctl.configure(Json{{"enabled", true}, {"scope", "10.20.0.0/24"}, {"allowed_ports", "x"}}); }, "port"));
+	assert(!ctl.enabled() && !fs::exists(file));
+	// the ceiling can not be exceeded, not even by a little
+	assert(api_error(400, [&] { ctl.configure(Json{{"enabled", true}, {"scope", "10.20.0.0/24,10.21.0.1"}, {"allowed_ports", "22"}}); }, "beyond"));
+	assert(api_error(400, [&] { ctl.configure(Json{{"enabled", true}, {"scope", "0.0.0.0/0"}, {"allowed_ports", "22"}}); }, "beyond"));
+	// unknown keys and wrong types are refused (the ceiling is not a setting)
+	assert(api_error(400, [&] { ctl.configure(Json{{"ceiling", "0.0.0.0/0"}}); }, "unknown"));
+	assert(api_error(400, [&] { ctl.configure(Json{{"enabled", "yes"}}); }, "true or false"));
+	assert(api_error(400, [&] { ctl.configure(Json{{"max_workers", 0}}); }));
+	assert(api_error(400, [&] { ctl.configure(Json{{"max_rate", 100001}}); }));
+	assert(api_error(400, [&] { ctl.configure(Json::array()); }));
+	assert(!ctl.enabled());
+
+	// a valid change takes effect at once and is saved with 0600
+	ctl.configure(Json{{"enabled", true}, {"scope", "10.20.0.0/24"}, {"allowed_ports", "22,80"}, {"max_workers", 2}, {"max_rate", 150}});
+	assert(ctl.enabled() && ctl.status()["policy"]["scope"] == "10.20.0.0/24" && ctl.status()["policy"]["max_rate"] == 150);
+	assert(api_error(400, [&] { ctl.plan(req({"10.20.1.1"})); }, "outside the allowed scope"));
+	assert(ctl.plan(req({"10.20.0.0/28"}))["addresses"].get<int>() > 0);
+	assert(fs::exists(file) && (fs::status(file).permissions() & (fs::perms::group_all | fs::perms::others_all)) == fs::perms::none);
+
+	// a partial change keeps the rest
+	ctl.configure(Json{{"max_rate", 170}});
+	assert(ctl.settings()["scope"] == "10.20.0.0/24" && ctl.settings()["max_rate"] == 170 && ctl.settings()["allow_reserved"] == false);
+
+	// a new controller (a restart) reads the file back, under its own ceiling
+	{
+		ScanPolicy q;
+		q.ceiling = "10.20.0.0/16";
+		ScanController again(q, &store);
+		again.persist_to(file);
+		assert(again.load_settings() && again.enabled() && again.settings()["max_rate"] == 170);
+	}
+	// ... and ignores it, with a reason, when the ceiling no longer allows it; scans stay off
+	{
+		ScanPolicy q;
+		q.ceiling = "192.168.0.0/16";
+		ScanController again(q, &store);
+		again.persist_to(file);
+		std::string problem;
+		assert(!again.load_settings(&problem) && !again.enabled() && problem.find("beyond") != std::string::npos);
+	}
+	// a damaged file is ignored too
+	{
+		std::ofstream(file) << "{not json";
+		ScanController again(ScanPolicy{}, &store);
+		again.persist_to(file);
+		std::string problem;
+		assert(!again.load_settings(&problem) && !again.enabled() && !problem.empty());
+	}
+	// a bad ceiling stops the start-up
+	{
+		ScanPolicy q;
+		q.ceiling = "nonsense";
+		bool threw = false;
+		try { ScanController c(q, &store); } catch (const std::invalid_argument&) { threw = true; }
+		assert(threw);
+	}
+}
+
 int main() {
 	test_parse_request();
 	test_token_guard();
 	test_controller();
 	test_stop_and_one_at_a_time();
+	test_settings();
 	return 0;
 }

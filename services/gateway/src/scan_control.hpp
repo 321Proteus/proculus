@@ -4,18 +4,21 @@
 // Starting and stopping scans from the web UI.
 //
 // Scans started this way are the first thing the API does to a network, so the
-// rules are strict and set by the operator when the gateway is started, not by
-// whoever uses the form:
+// rules are strict and are not set by whoever uses the form:
 //  * the policy fixes the scope, the allowed ports and the ceilings for workers
 //    and packet rate; a request can only choose targets inside the scope and
 //    values under the ceilings;
+//  * the policy is changed by an administrator (config.manage) at run time and
+//    kept in a file; the operator's only fixed limit is the optional `ceiling`
+//    (--scan-ceiling), which no setting can go beyond;
 //  * one scan at a time;
-//  * scans are off unless the operator enabled them.
+//  * scans are off until an administrator enables them.
 // A scan runs on a background thread through the same Runner as the command
 // line, so it has the same safety checks (validated nmap commands, scope and
 // port gates). The controller keeps its progress and a short log for the UI.
 
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -28,6 +31,7 @@ namespace proculus {
 
 struct ScanPolicy {
 	bool enabled = false;
+	std::string ceiling;        // set at start-up by the operator: the scope can never go beyond it (empty: no limit)
 	std::string scope;          // required when enabled
 	std::string allowed_ports;  // required when enabled
 	unsigned max_workers = 4;
@@ -62,6 +66,19 @@ public:
 
 	bool enabled() const;
 	Json status() const;
+
+	// The settings an administrator may change (also what is saved): enabled, scope,
+	// allowed_ports, max_workers, max_rate, allow_privileged, allow_web, allow_reserved,
+	// plus the read-only `ceiling` and whether a scan is running.
+	Json settings() const;
+	// Applies the keys present in `body` (unknown keys are refused), validates the result
+	// against the ceiling and saves it. Throws ApiError 400 when invalid.
+	// A scan that is already running keeps the settings it started with.
+	void configure(const Json& body);
+	// Keeps the settings in this file: written (0600) by every configure(); load_settings()
+	// reads it at start-up. A file that is unusable is ignored with a message and scans stay off.
+	void persist_to(std::filesystem::path file);
+	bool load_settings(std::string* problem = nullptr);
 	// What a scan of this request would involve (validates it too); scans nothing.
 	Json plan(const ScanRequest& request) const;
 	// Throws ApiError: 403 scans disabled, 400 invalid request, 409 a scan is already running.

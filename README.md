@@ -116,16 +116,24 @@ desktop and similar are ranked even when no signature matched.
 
 **Starting scans from the UI.** The "New scan" page (targets, exclusions, ports,
 workers, rate, timing, web probing, a plan preview, live progress, stop) is off
-unless the operator turns it on when starting the gateway. The limits are fixed
-there; the form can only choose targets inside the scope and values under the
-ceilings, and one scan runs at a time. It uses the same runner as the command line,
-with the same safety checks.
+until an administrator turns it on in the UI: **Admin → Scanning** (needs the
+`config.manage` permission) sets the address scope, the allowed ports and the
+limits, and keeps them in `scan-config.json` next to the results (0600), so they
+survive a restart; every change is in the audit log. The form can only choose
+targets inside that scope and values under those limits, and one scan runs at a
+time. It uses the same runner as the command line, with the same safety checks.
+
+The one thing a UI setting can not change is the operator's ceiling,
+`--scan-ceiling 192.168.0.0/16` (optional): the scope is refused if it goes beyond it.
+`--enable-scans`, `--scan-scope`, `--scan-ports` and the other `--scan-*` limits still
+work, but only as first-run defaults until the settings file exists. Without login
+(`--no-auth`) there is nobody to answer for a change, so the settings can only come
+from those flags.
 
 ```sh
-export PROCULUS_CONTROL_TOKEN=choose-a-long-secret        # else a random one is printed at startup
-./build/services/gateway/gateway serve --store results --enable-scans \
-    --scan-scope 192.168.1.0/24 --scan-ports 22,80,443,8080 --scan-max-workers 2 --scan-max-rate 100
+./build/services/gateway/gateway serve --store results --scan-ceiling 192.168.1.0/24
 ./build/services/ui/ui
+# sign in as the administrator, then Admin > Scanning
 ```
 
 With login off (`--no-auth`), starting, planning and stopping scans need that control

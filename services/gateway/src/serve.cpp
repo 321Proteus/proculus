@@ -44,14 +44,14 @@ void usage() {
 	          << "  --port N          port to listen on (default 8081)\n"
 	          << "  --bind ADDR       address to listen on (default 127.0.0.1)\n"
 	          << "  --allow-host H    accept requests addressed to this host name too (repeatable)\n"
-	          << "scans from the web UI (off by default; the limits below are fixed here, the form can only go under them)\n"
-	          << "  --enable-scans          allow starting scans from the UI; needs --scan-scope and --scan-ports\n"
-	          << "  --scan-scope LIST       the only addresses a UI scan may touch\n"
-	          << "  --scan-ports LIST       the only ports a UI scan may probe\n"
-	          << "  --scan-max-workers N    (default 4)    --scan-max-rate PPS  per nmap process (default 200)\n"
-	          << "  --scan-allow-privileged raw-socket scans (needs root / CAP_NET_RAW)   --scan-no-web  no web probing\n"
-	          << "  --scan-allow-reserved   allow loopback etc. (tests, local labs)       --scan-nmap PATH   --scan-signatures PATH (repeatable)\n"
-	          << "  Starting or stopping a scan needs the control token ($PROCULUS_CONTROL_TOKEN, or a random one printed at startup).\n"
+	          << "scans from the web UI: off until an administrator turns them on in the UI (Admin > Scanning); that is saved in a file\n"
+	          << "  --scan-ceiling LIST     the most an administrator may ever allow: the scan scope can not go beyond these addresses\n"
+	          << "  --scan-config FILE      where the scan settings are kept (default: scan-config.json in --store, or in --accounts with --db)\n"
+	          << "  --scan-nmap PATH   --scan-signatures PATH (repeatable)\n"
+	          << "  First-run defaults (used only until the settings file exists; afterwards the UI is in charge):\n"
+	          << "  --enable-scans   --scan-scope LIST   --scan-ports LIST   --scan-max-workers N   --scan-max-rate PPS\n"
+	          << "  --scan-allow-privileged   --scan-no-web   --scan-allow-reserved\n"
+	          << "  Without login (--no-auth) the settings can not be changed from the UI, and starting a scan needs the control token ($PROCULUS_CONTROL_TOKEN, or a random one printed at startup).\n"
 	          << "Accounts: with --db in Postgres, otherwise in files; create more with `gateway user add`.\n";
 }
 
@@ -59,7 +59,7 @@ void usage() {
 
 int serve_command(int argc, char** argv) {
 	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_DB, OPT_DB_MIGRATIONS, OPT_AUTH, OPT_NO_AUTH, OPT_ACCOUNTS, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
-		OPT_SCAN_ALLOW_RESERVED, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
+		OPT_SCAN_ALLOW_RESERVED, OPT_SCAN_CEILING, OPT_SCAN_CONFIG, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
 	static const option opts[] = {
 		{"store", required_argument, nullptr, OPT_STORE}, {"port", required_argument, nullptr, OPT_PORT},
 		{"bind", required_argument, nullptr, OPT_BIND},   {"allow-host", required_argument, nullptr, OPT_ALLOW_HOST},
@@ -76,6 +76,8 @@ int serve_command(int argc, char** argv) {
 		{"scan-allow-privileged", no_argument, nullptr, OPT_SCAN_PRIVILEGED},
 		{"scan-no-web", no_argument, nullptr, OPT_SCAN_NO_WEB},
 		{"scan-allow-reserved", no_argument, nullptr, OPT_SCAN_ALLOW_RESERVED},
+		{"scan-ceiling", required_argument, nullptr, OPT_SCAN_CEILING},
+		{"scan-config", required_argument, nullptr, OPT_SCAN_CONFIG},
 		{"scan-nmap", required_argument, nullptr, OPT_SCAN_NMAP},
 		{"scan-signatures", required_argument, nullptr, OPT_SCAN_SIGNATURES},
 		{"help", no_argument, nullptr, OPT_HELP}, {nullptr, 0, nullptr, 0},
@@ -84,7 +86,7 @@ int serve_command(int argc, char** argv) {
 	ScanPolicy policy;
 	std::string store_dir, db_url, db_migrations;
 	bool use_auth = true; // login is the default; --no-auth turns it off
-	std::string accounts_dir;
+	std::string accounts_dir, scan_config;
 	try {
 		optind = 1;
 		opterr = 0;
@@ -108,6 +110,8 @@ int serve_command(int argc, char** argv) {
 			case OPT_SCAN_PRIVILEGED: policy.allow_privileged = true; break;
 			case OPT_SCAN_NO_WEB: policy.allow_web = false; break;
 			case OPT_SCAN_ALLOW_RESERVED: policy.allow_reserved = true; break;
+			case OPT_SCAN_CEILING: policy.ceiling = optarg; break;
+			case OPT_SCAN_CONFIG: scan_config = optarg; break;
 			case OPT_SCAN_NMAP: policy.nmap_path = optarg; break;
 			case OPT_SCAN_SIGNATURES: policy.signature_paths.push_back(optarg); break;
 			case OPT_HELP: usage(); return 0;
@@ -178,7 +182,19 @@ int serve_command(int argc, char** argv) {
 				std::cerr << "proculus: control token for changes (scans, edits): " << cfg.control_token << "\n";
 			}
 		}
-		ScanController scans(policy, &store); // validates the policy
+		ScanController scans(policy, &store); // validates the flags (first-run defaults)
+		if (scan_config.empty()) {
+			if (!store_dir.empty()) scan_config = (std::filesystem::path(store_dir) / "scan-config.json").string();
+			else if (!accounts_dir.empty()) scan_config = (std::filesystem::path(accounts_dir) / "scan-config.json").string();
+		}
+		if (scan_config.empty()) {
+			std::cerr << "proculus: note: no place for the scan settings (give --scan-config FILE); changes made in the UI will be lost on restart\n";
+		} else {
+			scans.persist_to(scan_config);
+			std::string problem;
+			if (scans.load_settings(&problem)) std::cerr << "proculus: scan settings loaded from " << scan_config << (scans.enabled() ? " (scans ON)" : " (scans off)") << "\n";
+			else if (!problem.empty()) std::cerr << "proculus: WARNING: ignoring " << scan_config << ": " << problem << "\n";
+		}
 		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get());
 		const int port = server.bind();
 		g_server = &server;

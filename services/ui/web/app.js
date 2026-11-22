@@ -8,8 +8,8 @@ const TEXTS = {
   pl: {
     dashboard: 'Dashboard', services: 'Usługi', runs: 'Skany', changes: 'Zmiany', add: 'Dodaj dane', admin: 'Administracja', soon: 'wkrótce',
     scan: 'Nowy skan', scanTitle: 'Nowy skan', scanDisabled: 'Uruchamianie skanów z interfejsu jest wyłączone na tym serwerze.',
-    scanDisabledHint: 'Operator włącza je przy starcie bramy: gateway serve --enable-scans --scan-scope SIEĆ --scan-ports PORTY',
-    limits: 'Limity ustawione przez operatora', scope: 'Zakres', allowedPorts: 'Dozwolone porty', maxWorkers: 'maks. procesów', maxRate: 'maks. pakietów/s',
+    scanDisabledHint: 'Administrator włącza je w zakładce Admin → Skanowanie (zakres adresów, porty, limity).',
+    limits: 'Limity ustawione przez administratora', scope: 'Zakres', allowedPorts: 'Dozwolone porty', maxWorkers: 'maks. procesów', maxRate: 'maks. pakietów/s',
     targets: 'Cele', targetsHint: 'Po jednym w linii: adres IP, CIDR, zakres lub domena', exclusions: 'Wyłączenia', exclusionsHint: 'Adresy, które nigdy nie będą skanowane',
     ports: 'Porty usług', portsHint: 'Puste = wszystkie dozwolone porty', workers: 'Procesy nmap', rate: 'Pakietów/s na proces', timing: 'Tempo nmap (-T)',
     web: 'Sondowanie usług webowych i wykrywanie technologii', privileged: 'Skan z surowymi gniazdami (SYN, ICMP; wymaga uprawnień)',
@@ -57,8 +57,8 @@ const TEXTS = {
   en: {
     dashboard: 'Dashboard', services: 'Services', runs: 'Runs', changes: 'Changes', add: 'Add data', admin: 'Administration', soon: 'coming soon',
     scan: 'New scan', scanTitle: 'New scan', scanDisabled: 'Starting scans from the UI is turned off on this server.',
-    scanDisabledHint: 'The operator enables it when starting the gateway: gateway serve --enable-scans --scan-scope NETWORK --scan-ports PORTS',
-    limits: 'Limits set by the operator', scope: 'Scope', allowedPorts: 'Allowed ports', maxWorkers: 'max processes', maxRate: 'max packets/s',
+    scanDisabledHint: 'An administrator turns it on in the Admin tab → Scanning (address scope, ports, limits).',
+    limits: 'Limits set by an administrator', scope: 'Scope', allowedPorts: 'Allowed ports', maxWorkers: 'max processes', maxRate: 'max packets/s',
     targets: 'Targets', targetsHint: 'One per line: IP address, CIDR, range or domain', exclusions: 'Exclusions', exclusionsHint: 'Addresses that are never scanned',
     ports: 'Service ports', portsHint: 'Empty = every allowed port', workers: 'nmap processes', rate: 'Packets/s per process', timing: 'nmap timing (-T)',
     web: 'Probe web services and detect technologies', privileged: 'Raw-socket scan (SYN, ICMP; needs privileges)',
@@ -108,6 +108,10 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  scanCfgTitle: 'Skanowanie (ustawienia administratora)', scanCfgIntro: 'Skany z interfejsu są wyłączone, dopóki ich tu nie włączysz. Formularz „Nowy skan” może wybrać tylko cele z zakresu i porty z listy poniżej.',
+  scanCfgEnabled: 'Skanowanie z interfejsu włączone', scanCfgScope: 'Zakres adresów', scanCfgScopeHint: 'IP, CIDR lub zakresy, po przecinku, np. 10.250.165.0/24', scanCfgPorts: 'Dozwolone porty', scanCfgPortsHint: 'np. 22,80,443,8000-8100',
+  scanCfgWorkers: 'Maks. procesów nmap', scanCfgRate: 'Maks. pakietów/s na proces', scanCfgWeb: 'Zezwól na sondowanie WWW', scanCfgPriv: 'Zezwól na skany surowymi gniazdami (wymaga uprawnień)', scanCfgReserved: 'Zezwól na adresy zarezerwowane (loopback itp.; tylko lokalne laboratorium)',
+  scanCfgCeiling: 'Twardy limit operatora (--scan-ceiling)', scanCfgNoCeiling: 'brak', scanCfgSave: 'Zapisz ustawienia skanowania', scanCfgSaved: 'Zapisano.',
   tab_dashboard: '1. Dashboard & Skaner', tab_results: '2. Wyniki & Edycja', tab_changes: '3. Zmiany w czasie (Diff)', tab_targets: '4. Cele (CSV / JSON)',
   tab_signatures: '5. Własne sygnatury', tab_schedule: '6. Harmonogram & DefectDojo', tab_admin: '7. Administracja RBAC',
   brandSub: 'ATTACK SURFACE INTELLIGENCE', badgeAuthOn: 'LOGOWANIE WŁĄCZONE', badgeAuthOff: 'BEZ LOGOWANIA', badgeScope: 'Zakres skanu', tourBtn: 'Przewodnik', account: 'Konto',
@@ -143,6 +147,10 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  scanCfgTitle: 'Scanning (administrator settings)', scanCfgIntro: 'Scans from the UI stay off until you turn them on here. The "New scan" form can only pick targets inside the scope and ports from the list below.',
+  scanCfgEnabled: 'Scanning from the UI enabled', scanCfgScope: 'Address scope', scanCfgScopeHint: 'IPs, CIDRs or ranges, comma separated, e.g. 10.250.165.0/24', scanCfgPorts: 'Allowed ports', scanCfgPortsHint: 'e.g. 22,80,443,8000-8100',
+  scanCfgWorkers: 'Max nmap processes', scanCfgRate: 'Max packets/s per process', scanCfgWeb: 'Allow web probing', scanCfgPriv: 'Allow raw-socket scans (needs privileges)', scanCfgReserved: 'Allow reserved addresses (loopback etc.; local lab only)',
+  scanCfgCeiling: "Operator's hard limit (--scan-ceiling)", scanCfgNoCeiling: 'none', scanCfgSave: 'Save scan settings', scanCfgSaved: 'Saved.',
   tab_dashboard: '1. Dashboard & Scanner', tab_results: '2. Results & Edit', tab_changes: '3. Changes over time (Diff)', tab_targets: '4. Targets (CSV / JSON)',
   tab_signatures: '5. Custom signatures', tab_schedule: '6. Schedule & DefectDojo', tab_admin: '7. Administration (RBAC)',
   brandSub: 'ATTACK SURFACE INTELLIGENCE', badgeAuthOn: 'LOGIN ON', badgeAuthOff: 'NO LOGIN', badgeScope: 'Scan scope', tourBtn: 'Guide', account: 'Account',
@@ -733,10 +741,33 @@ function viewSoon(textKey, titleKey) {
 }
 
 // ---- administration: users, roles, audit log
+// Admin > Scanning: what the "New scan" form may do. The gateway validates everything (and the operator's ceiling).
+function scanSettingsCard(c, done) {
+  const on = el('input', { type: 'checkbox', checked: c.enabled });
+  const scope = el('input', { type: 'text', value: c.scope, autocomplete: 'off', spellcheck: 'false' });
+  const ports = el('input', { type: 'text', value: c.allowed_ports, autocomplete: 'off', spellcheck: 'false' });
+  const workers = el('input', { type: 'number', min: '1', max: '64', value: String(c.max_workers) });
+  const rate = el('input', { type: 'number', min: '1', max: '100000', value: String(c.max_rate) });
+  const web = el('input', { type: 'checkbox', checked: c.allow_web });
+  const priv = el('input', { type: 'checkbox', checked: c.allow_privileged });
+  const reserved = el('input', { type: 'checkbox', checked: c.allow_reserved });
+  const save = () => done(async () => {
+    await post('/api/scan/config', { enabled: on.checked, scope: scope.value.trim(), allowed_ports: ports.value.trim(), max_workers: Number(workers.value), max_rate: Number(rate.value),
+      allow_web: web.checked, allow_privileged: priv.checked, allow_reserved: reserved.checked });
+  });
+  return el('div', { class: 'card' }, el('h3', {}, t('scanCfgTitle')), el('p', { class: 'sub' }, t('scanCfgIntro')),
+    el('label', { class: 'check' }, on, ' ' + t('scanCfgEnabled')),
+    el('div', { class: 'grid-2' }, field(t('scanCfgScope'), t('scanCfgScopeHint'), scope), field(t('scanCfgPorts'), t('scanCfgPortsHint'), ports),
+      field(t('scanCfgWorkers'), '', workers), field(t('scanCfgRate'), '', rate)),
+    el('label', { class: 'check' }, web, ' ' + t('scanCfgWeb')), el('label', { class: 'check' }, priv, ' ' + t('scanCfgPriv')), el('label', { class: 'check' }, reserved, ' ' + t('scanCfgReserved')),
+    el('p', { class: 'sub', style: 'font-size:12px' }, t('scanCfgCeiling') + ': ', el('span', { class: 'mono' }, c.ceiling || t('scanCfgNoCeiling'))),
+    el('div', { class: 'toolbar' }, el('button', { onclick: save }, t('scanCfgSave'))));
+}
+
 async function viewAdmin() {
   if (!auth || !auth.enabled) return el('div', { class: 'card empty' }, el('h3', {}, t('adminTitle')), el('p', {}, t('authOff')));
   if (!can('users.manage')) return el('div', { class: 'card empty' }, el('p', {}, t('forbidden')));
-  const [users, roles, audit] = await Promise.all([api('/api/users'), api('/api/roles'), api('/api/audit?limit=100')]);
+  const [users, roles, audit, scanCfg] = await Promise.all([api('/api/users'), api('/api/roles'), api('/api/audit?limit=100'), can('config.manage') ? api('/api/scan/config') : Promise.resolve(null)]);
   const message = el('div', {});
   const done = async (fn) => {
     message.replaceChildren();
@@ -761,7 +792,7 @@ async function viewAdmin() {
   });
   const rn = el('input', { type: 'text', placeholder: t('roleName'), autocomplete: 'off' }), rd = el('input', { type: 'text', placeholder: t('description'), autocomplete: 'off' });
 
-  return el('div', {}, message,
+  return el('div', {}, message, scanCfg ? scanSettingsCard(scanCfg, done) : null,
     el('div', { class: 'card' }, el('h3', {}, t('users')),
       el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['username', 'role', 'status', 'lastLogin', 'actions'].map((k) => el('th', {}, t(k))))), el('tbody', {}, rows))),
       el('div', { class: 'toolbar', style: 'margin-top:12px' }, nu, np, nr, el('button', { onclick: () => done(() => post('/api/users', { username: nu.value.trim(), password: np.value, role: nr.value })) }, t('addUser')))),
