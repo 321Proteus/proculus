@@ -9,6 +9,7 @@
 #include <string>
 
 #include "demo.hpp"
+#include "reset_cli.hpp"
 #include "serve.hpp"
 #ifdef PROCULUS_HAVE_AUTH
 #include "users_cli.hpp"
@@ -43,6 +44,7 @@ static const option long_opts[] = {
 static void usage(const char* argv0) {
 	std::cerr << "usage: " << argv0 << " [options]\n"
 			  << "       " << argv0 << " serve [options]   web UI over saved runs (see serve --help)\n"
+			  << "       " << argv0 << " reset --store DIR  fresh start for a file store (see reset --help)\n"
 #ifdef PROCULUS_HAVE_AUTH
 			  << "       " << argv0 << " user COMMAND      accounts (see user --help)\n"
 #endif
@@ -78,6 +80,7 @@ static double to_double(const char* s, const char* what) {
 
 int main(int argc, char** argv) {
 	if (argc > 1 && std::string(argv[1]) == "serve") return proculus::serve_command(argc - 1, argv + 1);
+	if (argc > 1 && std::string(argv[1]) == "reset") return proculus::reset_command(argc - 1, argv + 1);
 #ifdef PROCULUS_HAVE_AUTH
 	if (argc > 1 && std::string(argv[1]) == "user") return proculus::users_command(argc - 1, argv + 1);
 #endif

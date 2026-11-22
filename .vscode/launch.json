@@ -22,6 +22,17 @@
 			"cwd": "${workspaceFolder}",
 			"terminal": "integrated"
 		},
+		// A first run every time: results-dev is wiped (task "proculus: fresh start"), so the setup token is asked for again.
+		{
+			"name": "Proculus: gateway (API, fresh data)",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/services/gateway/gateway",
+			"args": ["serve", "--store", "${workspaceFolder}/results-dev", "--port", "8082", "--scan-ceiling", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"],
+			"cwd": "${workspaceFolder}",
+			"preLaunchTask": "proculus: fresh start (results-dev)",
+			"terminal": "integrated"
+		},
 		// The emulated-network demo (writes runs into results/, which the dashboard then shows).
 		{
 			"name": "Proculus: demo data (emulated network)",
@@ -40,6 +51,11 @@
 			"name": "Proculus: gateway + ui",
 			"configurations": ["Proculus: gateway (API)", "Proculus: ui (web)"],
 			"preLaunchTask": "cmake: build",
+			"stopAll": true
+		},
+		{
+			"name": "Proculus: gateway + ui (fresh data)",
+			"configurations": ["Proculus: gateway (API, fresh data)", "Proculus: ui (web)"],
 			"stopAll": true
 		}
 	]

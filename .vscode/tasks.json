@@ -16,6 +16,15 @@
 			"dependsOn": "cmake: configure",
 			"group": { "kind": "build", "isDefault": true },
 			"problemMatcher": ["$gcc"]
+		},
+		{
+			// Wipes results-dev (accounts, edits, scan settings, saved runs) so the next start is a first run.
+			"label": "proculus: fresh start (results-dev)",
+			"type": "shell",
+			"command": "${workspaceFolder}/build/services/gateway/gateway",
+			"args": ["reset", "--store", "${workspaceFolder}/results-dev", "--runs", "--yes"],
+			"dependsOn": "cmake: build",
+			"problemMatcher": []
 		}
 	]
 }
