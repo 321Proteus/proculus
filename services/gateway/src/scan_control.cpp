@@ -285,6 +285,10 @@ struct ScanController::Impl {
 		c.web.enabled = r.web;
 		if (policy.simulated) c.web.requests_per_second = 500; // made-up servers: no reason to be gentle
 		c.web.signature_paths = policy.signature_paths;
+		if (!policy.custom_signatures.empty()) {
+			std::error_code ec;
+			if (std::filesystem::is_regular_file(policy.custom_signatures, ec)) c.web.signature_paths.push_back(policy.custom_signatures);
+		}
 		return c;
 	}
 
@@ -447,6 +451,11 @@ void ScanController::configure(const Json& body) {
 void ScanController::persist_to(std::filesystem::path file) {
 	std::lock_guard<std::mutex> l(impl_->m);
 	impl_->persist_file = std::move(file);
+}
+
+void ScanController::set_custom_signatures(const std::filesystem::path& file) {
+	std::lock_guard<std::mutex> l(impl_->m);
+	impl_->policy.custom_signatures = file.string();
 }
 
 bool ScanController::load_settings(std::string* problem) {

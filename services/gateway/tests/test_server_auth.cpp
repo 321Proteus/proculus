@@ -10,6 +10,7 @@
 
 #include "proculus/edits/edits.hpp"
 #include "server.hpp"
+#include "signature_store.hpp"
 #include "sim_network.hpp"
 
 using namespace proculus;
@@ -144,7 +145,8 @@ int main() {
 	cfg.port = 0;
 	cfg.control_token = "unused-when-login-is-on-0123456789"; // login replaces the control token
 	auto edit_store = make_file_edit_store(dir / "edits");
-	WebServer server(store, cfg, &scans, &auth, edit_store.get());
+	SignatureStore sigs(dir / "sigs" / "custom-signatures.json");
+	WebServer server(store, cfg, &scans, &auth, edit_store.get(), &sigs);
 	const int port = server.bind();
 	std::thread t([&] { server.run(); });
 	httplib::Client c("127.0.0.1", port);
@@ -189,6 +191,13 @@ int main() {
 	assert(c.Get("/api/users", hdr(viewer))->status == 403 && c.Get("/api/audit", hdr(viewer))->status == 403 && c.Get("/api/roles", hdr(viewer))->status == 403);
 	assert(c.Post("/api/scan", hdr(viewer), Json{{"targets", {"10.20.0.1"}}}.dump(), "application/json")->status == 403);
 	assert(c.Post("/api/scan/stop", hdr(viewer), "{}", "application/json")->status == 403);
+	{ // signatures: everybody who reads can see the list; only config.manage checks or saves
+		auto sl = c.Get("/api/signatures", hdr(viewer));
+		assert(sl && sl->status == 200 && Json::parse(sl->body)["signatures"].size() > 100);
+		assert(c.Get("/api/signatures")->status == 401);
+		const std::string doc = Json{{"text", "{\"format\":1,\"signatures\":[]}"}}.dump();
+		assert(c.Post("/api/signatures", hdr(viewer), doc, "application/json")->status == 403 && c.Post("/api/signatures/check", hdr(viewer), doc, "application/json")->status == 403);
+	}
 	assert(c.Get("/api/scan/config", hdr(viewer))->status == 403 && c.Post("/api/scan/config", hdr(viewer), Json{{"scope", "0.0.0.0/0"}}.dump(), "application/json")->status == 403);
 	assert(c.Post("/api/users", hdr(viewer), Json{{"username", "evil.user"}, {"password", "long enough pw"}, {"role", "admin"}}.dump(), "application/json")->status == 403);
 	auto me = Json::parse(c.Get("/api/me", hdr(viewer))->body)["user"];
@@ -209,6 +218,24 @@ int main() {
 
 	// ---- an administrator manages users and roles
 	const std::string admin = session("ann", "ann-password-1");
+	{ // ... the signatures: checked, refused when broken, saved, and written to the audit trail
+		const std::string good = R"({"format":1,"signatures":[{"id":"my-portal","name":"My portal","category":"admin","interest":3,"threshold":0.5,"signals":[{"weight":0.8,"match":{"field":"title","op":"contains","value":"Portal"}}]}]})";
+		assert(c.Post("/api/signatures", hdr(manager), Json{{"text", good}}.dump(), "application/json")->status == 403); // running scans is not editing what they look for
+		auto chk = c.Post("/api/signatures/check", hdr(admin), Json{{"text", good}}.dump(), "application/json");
+		assert(chk && chk->status == 200 && Json::parse(chk->body)["ok"] == true && !fs::exists(dir / "sigs" / "custom-signatures.json"));
+		assert(c.Post("/api/signatures", hdr(admin), Json{{"text", "{ broken"}}.dump(), "application/json")->status == 400);
+		assert(c.Post("/api/signatures", hdr(admin), Json{{"nope", 1}}.dump(), "application/json")->status == 400);
+		assert(c.Post("/api/signatures", hdr(admin), Json{{"text", good}}.dump(), "application/json")->status == 200);
+		assert(fs::exists(dir / "sigs" / "custom-signatures.json"));
+		bool seen = false;
+		const Json siglist = Json::parse(c.Get("/api/signatures", hdr(viewer))->body);
+		for (const Json& s : siglist["signatures"]) seen = seen || (s["id"] == "my-portal" && s["builtin"] == false);
+		assert(seen);
+		bool logged = false;
+		const Json trail = Json::parse(c.Get("/api/audit", hdr(admin))->body);
+		for (const Json& e : trail) logged = logged || (e["action"] == "signatures saved" && e["user"] == "ann");
+		assert(logged);
+	}
 	// ... and the scan settings: read, changed (validated), and written to the audit trail
 	assert(Json::parse(c.Get("/api/scan/config", hdr(admin))->body)["scope"] == "10.20.0.0/22");
 	assert(c.Post("/api/scan/config", hdr(admin), Json{{"allowed_ports", "x"}}.dump(), "application/json")->status == 400);

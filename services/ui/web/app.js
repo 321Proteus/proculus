@@ -108,6 +108,13 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  sigTitle: 'Własne sygnatury', sigIntro: 'Sygnatury opisują, po czym rozpoznać technologię, panel lub środowisko. Tylko wykrywają: sprawdzają nagłówek, ciasteczko, tytuł, treść, certyfikat lub kilka stałych ścieżek, niczego nie wysyłają ani nie logują się. Zapisane sygnatury są używane od następnego skanu, obok wbudowanych.',
+  sigCheck: 'Sprawdź', sigSave: 'Zapisz', sigExample: 'Wstaw przykład', sigValid: 'Poprawne', sigSaved: 'Zapisano', sigLoaded: 'sygnatur', sigInvalid: 'Są błędy; nic nie zapisano.', sigProblems: 'Zapisany plik ma błędy:',
+  sigNotPersistent: 'Brak miejsca na plik: zmiany zostaną utracone po restarcie bramy (podaj --scan-config PLIK).', sigReadOnly: 'Twoja rola może tylko oglądać sygnatury (zmiana wymaga uprawnienia konfiguracji).',
+  sigHelp: 'Format', sigHelp1: 'Plik JSON: {"format": 1, "signatures": [...]}. Pusty tekst usuwa własne sygnatury.', sigHelp2: 'Sygnatura: id (małe litery, cyfry . _ -), name, category (cms, framework, server, iot, staging, admin, other), signals, opcjonalnie threshold, interest 0-5, tags, version, exclude.',
+  sigHelp3: 'Sygnał: weight (0-1) i match, np. {"field": "title", "op": "contains", "value": "..."}. Pola: title, body, header:NAZWA, cookie, path:/ścieżka:status, host, ...; operatory: equals, contains, prefix, suffix, regex, exists.',
+  sigHelp4: 'Dodaj examples (dowód i oczekiwany wynik): niepasujący przykład blokuje zapis. "override": true zastępuje wbudowaną sygnaturę o tym id, a "disable": ["id"] wyłącza wbudowaną.',
+  sigListTitle: 'Sygnatury (wbudowane i własne)', sigSearch: 'Szukaj (id, nazwa, tag, opis)…', sigBuiltin: 'wbudowana', sigCustom: 'własna', sigId: 'Id', sigName: 'Nazwa', sigInterest: 'Ciekawość', sigTags: 'Tagi',
   category: 'Kategoria', cat_cms: 'CMS', cat_framework: 'Framework', cat_server: 'Serwer', cat_iot: 'IoT', cat_admin: 'Panel admin.', cat_staging: 'Staging / test', cat_other: 'Inne',
   importSettings: 'Importuj ustawienia skanu', importTip: 'Wczytuje do formularza plik JSON: {"targets": ["10.0.0.0/24", "example.com"], "exclusions": [...], "ports": [22, 80, 443] lub "22,80,8000-8100", "nmap_processes": 2, "rate": 100, "timing": 3, "web": false}. Wymagane jest tylko "targets". Skan nie jest uruchamiany.',
   importBad: 'Nie wczytano pliku', importBadJson: 'to nie jest poprawny JSON', importNotObject: 'plik musi zawierać obiekt JSON', importUnknown: 'nieznane pole', importRequired: 'wymagane', importList: 'oczekiwana lista (maks. 200 pozycji)',
@@ -146,7 +153,7 @@ Object.assign(TEXTS.pl, {
   tipSaveTxt: 'Pobiera podsumowanie ostatniego skanu jako plik tekstowy (.txt).',
   stabilityTitle: 'Monitor stabilności hostów (okresowa dostępność w czasie)', stateCol: 'Stan', sightingsCol: 'Wykrycia', lastRunCol: 'Ostatni skan', allStable: 'Wszystkie hosty odpowiadają stabilnie.',
   resultsTitle: 'Wykryte usługi i artefakty', sub_services: 'Usługi', sub_runs: 'Skany', sub_edits: 'Edycje',
-  soonTitle: 'W przygotowaniu', soonSignatures: 'Przeglądanie wbudowanych sygnatur i tworzenie własnych (format JSON, walidacja i testy przykładów). Na razie sygnatury dodaje się z linii poleceń: signatures lint / http-prober --signatures.',
+  soonTitle: 'W przygotowaniu',
   soonSchedule: 'Harmonogram cyklicznych skanów (okno czasowe, częstotliwość) i eksport obserwacji do DefectDojo. Na razie: runner --window --interval oraz scheduler.',
   gateSub: 'Attack Surface Intelligence', gateBadge: 'Sesja z tokenem • role RBAC', loginBtn: 'Zaloguj do konsoli Proculus', setupSub: 'Inicjalizacja • pierwsze uruchomienie',
   tourTitle: 'PROCULUS — Przewodnik', tourStep: 'Krok', tourOf: 'z', tourSkip: 'Pomiń', tourPrev: '◀ Wstecz', tourNext: 'Dalej ▶', tourFinish: 'Zakończ ✔',
@@ -162,6 +169,13 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  sigTitle: 'Custom signatures', sigIntro: 'Signatures describe how to recognise a technology, a panel or an environment. They only detect: they look at a header, a cookie, the title, the page, the certificate or a few fixed paths, and never send anything or log in. Saved signatures are used from the next scan on, next to the built-in ones.',
+  sigCheck: 'Check', sigSave: 'Save', sigExample: 'Insert example', sigValid: 'Valid', sigSaved: 'Saved', sigLoaded: 'signatures', sigInvalid: 'There are errors; nothing was saved.', sigProblems: 'The saved file has errors:',
+  sigNotPersistent: 'No place for a file: changes are lost when the gateway restarts (give --scan-config FILE).', sigReadOnly: 'Your role can only view signatures (changing them needs the configuration permission).',
+  sigHelp: 'Format', sigHelp1: 'A JSON file: {"format": 1, "signatures": [...]}. Empty text removes the custom signatures.', sigHelp2: 'A signature: id (lowercase letters, digits . _ -), name, category (cms, framework, server, iot, staging, admin, other), signals, optionally threshold, interest 0-5, tags, version, exclude.',
+  sigHelp3: 'A signal: weight (0-1) and match, e.g. {"field": "title", "op": "contains", "value": "..."}. Fields: title, body, header:NAME, cookie, path:/path:status, host, ...; operators: equals, contains, prefix, suffix, regex, exists.',
+  sigHelp4: 'Add examples (evidence and the expected result): an example that does not hold blocks saving. "override": true replaces a built-in signature with the same id, and "disable": ["id"] switches a built-in off.',
+  sigListTitle: 'Signatures (built-in and custom)', sigSearch: 'Search (id, name, tag, description)…', sigBuiltin: 'built-in', sigCustom: 'custom', sigId: 'Id', sigName: 'Name', sigInterest: 'Interest', sigTags: 'Tags',
   category: 'Category', cat_cms: 'CMS', cat_framework: 'Framework', cat_server: 'Server', cat_iot: 'IoT', cat_admin: 'Admin panel', cat_staging: 'Staging / test', cat_other: 'Other',
   importSettings: 'Import scan settings', importTip: 'Loads a JSON file into the form: {"targets": ["10.0.0.0/24", "example.com"], "exclusions": [...], "ports": [22, 80, 443] or "22,80,8000-8100", "nmap_processes": 2, "rate": 100, "timing": 3, "web": false}. Only "targets" is required. No scan is started.',
   importBad: 'The file was not loaded', importBadJson: 'not valid JSON', importNotObject: 'the file must hold a JSON object', importUnknown: 'unknown field', importRequired: 'required', importList: 'expected a list (at most 200 entries)',
@@ -200,7 +214,7 @@ Object.assign(TEXTS.en, {
   tipSaveTxt: 'Downloads the summary of the latest scan as a text file (.txt).',
   stabilityTitle: 'Host stability monitor (availability over time)', stateCol: 'State', sightingsCol: 'Sightings', lastRunCol: 'Last run', allStable: 'All hosts answer reliably.',
   resultsTitle: 'Detected services and artefacts', sub_services: 'Services', sub_runs: 'Runs', sub_edits: 'Edits',
-  soonTitle: 'Coming soon', soonSignatures: 'Browsing the built-in signatures and writing your own (JSON format, validation and example tests). For now signatures are added from the command line: signatures lint / http-prober --signatures.',
+  soonTitle: 'Coming soon',
   soonSchedule: 'A schedule of recurring scans (time window, frequency) and exporting observations to DefectDojo. For now: runner --window --interval, and the scheduler.',
   gateSub: 'Attack Surface Intelligence', gateBadge: 'Token sessions • RBAC roles', loginBtn: 'Sign in to the Proculus console', setupSub: 'Initialisation • first run',
   tourTitle: 'PROCULUS — Guide', tourStep: 'Step', tourOf: 'of', tourSkip: 'Skip', tourPrev: '◀ Back', tourNext: 'Next ▶', tourFinish: 'Finish ✔',
@@ -1005,6 +1019,98 @@ async function viewChanges(params) {
 }
 
 // ---- tabs that are announced but not built yet
+// ---------------------------------------------------------------- custom signatures: a text editor, and the built-in and custom signatures under it
+const SIG_EXAMPLE = `{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "minecraft-server",
+      "name": "Minecraft server",
+      "category": "other",
+      "tags": ["game", "not-web"],
+      "interest": 2,
+      "description": "A Minecraft (Java Edition) game server. Not a web service: uses what nmap found (port and service).",
+      "threshold": 0.5,
+      "signals": [
+        { "weight": 0.6, "label": "the default Minecraft port", "match": { "field": "port", "op": "equals", "value": 25565 } },
+        {
+          "weight": 0.9,
+          "label": "nmap identified it as Minecraft",
+          "match": {
+            "any": [
+              { "field": "service.name", "op": "equals", "value": "minecraft" },
+              { "field": "service.product", "op": "contains", "value": "Minecraft" }
+            ]
+          }
+        }
+      ],
+      "version": { "field": "service.version", "regex": "^([0-9][0-9.]*)" },
+      "examples": [
+        { "name": "identified by nmap", "evidence": { "port": 25565, "service.name": "minecraft", "service.version": "1.20.4" }, "version": "1.20.4" },
+        { "name": "the default port alone", "evidence": { "port": 25565 } },
+        { "name": "some other service", "evidence": { "port": 22, "service.name": "ssh" }, "expect": "no-match" }
+      ]
+    }
+  ]
+}
+`;
+
+async function viewSignatures() {
+  const data = await api('/api/signatures');
+  const editable = can('config.manage');
+  let all = data.signatures;
+  const editor = el('textarea', { class: 'sig-editor mono', rows: 20, spellcheck: 'false', autocomplete: 'off', 'aria-label': t('sigTitle'), readonly: !editable });
+  editor.value = data.text || (editable ? SIG_EXAMPLE : '');
+  const result = el('div', {});
+  const table = el('tbody', {});
+  const count = el('span', { class: 'sub' });
+  const search = el('input', { class: 'grow', type: 'search', placeholder: t('sigSearch') });
+  const catSelect = el('select', { style: 'width:auto', 'aria-label': t('category') }, el('option', { value: '' }, t('category') + ': ' + t('any')), CATEGORIES.map((c) => el('option', { value: c }, t('category') + ': ' + catLabel(c))));
+  const srcSelect = el('select', { style: 'width:auto', 'aria-label': t('source') }, el('option', { value: '' }, t('source') + ': ' + t('any')),
+    el('option', { value: 'builtin' }, t('source') + ': ' + t('sigBuiltin')), el('option', { value: 'custom' }, t('source') + ': ' + t('sigCustom')));
+
+  const drawList = () => {
+    const q = search.value.trim().toLowerCase();
+    const rows = all.filter((x) => (!catSelect.value || x.category === catSelect.value) && (!srcSelect.value || (srcSelect.value === 'builtin') === x.builtin)
+      && (!q || (x.id + ' ' + x.name + ' ' + x.tags.join(' ') + ' ' + x.description).toLowerCase().includes(q)));
+    rows.sort((a, b) => (a.builtin === b.builtin ? 0 : a.builtin ? 1 : -1)); // the custom ones first: they are the ones being worked on
+    table.replaceChildren(...rows.map((x) => el('tr', { title: x.description || '' },
+      el('td', { class: 'mono' }, x.id), el('td', {}, x.name), el('td', {}, el('span', { class: 'chip tech ' + catClass(x.category) }, catLabel(x.category))),
+      el('td', {}, String(x.interest)), el('td', {}, el('span', { class: 'badge ' + (x.builtin ? 'b-gray' : 'b-blue') }, x.builtin ? t('sigBuiltin') : t('sigCustom'))),
+      el('td', { class: x.enabled ? 'tag-new' : 'tag-gone' }, x.enabled ? t('enabled') : t('disabled')), el('td', {}, x.tags.map((g) => el('span', { class: 'chip' }, '#' + g))))));
+    count.textContent = rows.length + ' / ' + all.length;
+  };
+  for (const c of [search, catSelect, srcSelect]) c.addEventListener(c === search ? 'input' : 'change', drawList);
+  drawList();
+
+  const lines = (items, cls) => (items && items.length ? el('div', { class: cls }, items.map((x) => el('div', { class: 'mono', style: 'font-size:12px;white-space:pre-wrap' }, x))) : null);
+  const show = (r, saved) => result.replaceChildren(
+    r.ok ? el('div', { class: 'ok-note' }, (saved ? t('sigSaved') : t('sigValid')) + ' · ' + r.loaded + ' ' + t('sigLoaded')) : el('div', { class: 'err' }, t('sigInvalid')),
+    lines(r.errors, 'err'), lines(r.examples, 'err'), lines(r.warnings, 'err warn'));
+  const run = async (path, saved) => {
+    result.replaceChildren();
+    try {
+      const r = await post(path, { text: editor.value });
+      show(r, saved);
+      if (saved) { const fresh = await api('/api/signatures'); all = fresh.signatures; drawList(); }
+    } catch (e) { if (e instanceof LoginRequired) throw e; result.replaceChildren(el('div', { class: 'err' }, e.message)); }
+  };
+
+  const help = el('details', { class: 'sig-help' }, el('summary', {}, t('sigHelp')), el('ul', { class: 'reasons' }, ['sigHelp1', 'sigHelp2', 'sigHelp3', 'sigHelp4'].map((k) => el('li', {}, t(k)))));
+  return el('div', {},
+    el('div', { class: 'card' }, el('h3', {}, t('sigTitle')), el('p', { class: 'sub' }, t('sigIntro')),
+      data.problems && data.problems.length ? el('div', { class: 'err' }, el('b', {}, t('sigProblems')), data.problems.map((x) => el('div', { class: 'mono', style: 'font-size:12px' }, x))) : null,
+      data.persistent ? null : el('div', { class: 'err warn' }, t('sigNotPersistent')),
+      !editable ? el('div', { class: 'err warn' }, t('sigReadOnly')) : null, help, editor,
+      el('div', { class: 'toolbar' },
+        editable ? el('button', { class: 'sec', onclick: () => run('/api/signatures/check', false) }, t('sigCheck')) : null,
+        editable ? el('button', { onclick: () => run('/api/signatures', true) }, t('sigSave')) : null,
+        editable ? el('button', { class: 'sec', onclick: () => { editor.value = SIG_EXAMPLE; result.replaceChildren(); } }, t('sigExample')) : null), result),
+    el('div', { class: 'card' }, el('h3', {}, t('sigListTitle')),
+      el('div', { class: 'toolbar' }, search, catSelect, srcSelect, count),
+      el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['sigId', 'sigName', 'category', 'sigInterest', 'source', 'status', 'sigTags'].map((k) => el('th', {}, t(k))))), table))));
+}
+
 function viewSoon(textKey, titleKey) {
   return () => el('div', { class: 'card' }, el('h3', {}, t(titleKey)), el('div', { class: 'empty' }, el('div', { style: 'font-size:34px' }, '🛠'), el('b', {}, t('soonTitle')), el('p', {}, t(textKey))));
 }
@@ -1146,9 +1252,9 @@ function renderHeader() {
       signedIn ? el('button', { class: 'sec', onclick: async () => { try { await post('/api/logout'); } catch (e) { /* the session may be gone already */ } setSession('', null); location.hash = '#/dashboard'; render(); } }, t('signOut')) : null));
 }
 
-const ROUTES = { dashboard: viewDashboard, results: viewResults, changes: viewChanges, signatures: viewSoon('soonSignatures', 'tab_signatures'), schedule: viewSoon('soonSchedule', 'tab_schedule'), admin: viewAdmin };
+const ROUTES = { dashboard: viewDashboard, results: viewResults, changes: viewChanges, signatures: viewSignatures, schedule: viewSoon('soonSchedule', 'tab_schedule'), admin: viewAdmin };
 const ROUTE_PERMISSION = { dashboard: 'data.read', results: 'data.read', changes: 'data.read', signatures: 'data.read', schedule: 'data.read', admin: 'users.manage' };
-const SOON = new Set(['signatures', 'schedule']);
+const SOON = new Set(['schedule']);
 const ALIASES = { services: ['results', { view: 'services' }], runs: ['results', { view: 'runs' }], edits: ['results', { view: 'edits' }], scan: ['dashboard', {}], targets: ['dashboard', {}] }; // links of the earlier layout keep working
 
 function parseHash() {

@@ -17,7 +17,7 @@ static void test_targets() {
 	                         "/api/runs\r\nX-Evil: 1", "/api/runs#frag", "/api/runs?q=a;b", "/api/runs?q=a\\b", "/static/app.js"})
 		assert(!is_proxyable_target(bad));
 	assert(!is_proxyable_target("/api/" + std::string(3000, 'a')));
-	assert(is_postable_path("/api/scan") && is_postable_path("/api/scan/plan") && is_postable_path("/api/scan/stop") && is_postable_path("/api/scan/config"));
+	assert(is_postable_path("/api/scan") && is_postable_path("/api/scan/plan") && is_postable_path("/api/scan/stop") && is_postable_path("/api/scan/config") && is_postable_path("/api/signatures") && is_postable_path("/api/signatures/check"));
 	for (const char* p : {"/api/edits", "/api/edits/clear", "/api/login", "/api/setup", "/api/logout", "/api/users", "/api/users/update", "/api/roles", "/api/roles/delete"}) assert(is_postable_path(p));
 	for (const char* no : {"/api/runs", "/api/scan/", "/api/scan/x", "/api/scans", "/api", "/", "/api/scan/stop/", "/api/audit", "/api/me", "/api/users/", "/api/users/delete", "/api/edits/", "/api/edits/other"}) assert(!is_postable_path(no));
 }
@@ -84,6 +84,7 @@ int main() {
 	assert(js && js->status == 200 && js->get_header_value("Content-Type").find("javascript") != std::string::npos);
 	// the settings import has a fixed scheme, and the placeholder tab for it is gone
 	assert(js->body.find("parseSettingsFile") != std::string::npos && js->body.find("nmap_processes") != std::string::npos);
+	assert(js->body.find("viewSignatures") != std::string::npos && js->body.find("soonSignatures") == std::string::npos); // the signatures tab is a real view now
 	assert(js->body.find("soonTargets") == std::string::npos && js->body.find("tab_targets") == std::string::npos);
 	assert(js->body.find("setAttribute('style'") == std::string::npos && js->body.find("style.cssText") != std::string::npos); // styles go through the CSSOM: the policy blocks style attributes
 	assert(js->body.find("textContent") != std::string::npos && js->body.find("innerHTML") == std::string::npos); // untrusted text goes in as text only

@@ -61,6 +61,7 @@ struct ScanPolicy {
 	bool allow_reserved = false; // loopback etc. (for tests and local labs)
 	std::string nmap_path = "nmap";
 	std::vector<std::string> signature_paths; // custom signatures for the web stage
+	std::string custom_signatures;            // the administrator's signature file (see SignatureStore): used when it exists, read again for every scan
 };
 
 // From the UI's JSON; ApiError(400) for anything malformed. Unknown keys are refused.
@@ -90,6 +91,8 @@ public:
 	// Keeps the settings in this file: written (0600) by every configure(); load_settings()
 	// reads it at start-up. A file that is unusable is ignored with a message and scans stay off.
 	void persist_to(std::filesystem::path file);
+	// The administrator's signature file (SignatureStore): added to the web stage of every scan that starts while it exists.
+	void set_custom_signatures(const std::filesystem::path& file);
 	bool load_settings(std::string* problem = nullptr);
 	// What a scan of this request would involve (validates it too); scans nothing.
 	Json plan(const ScanRequest& request) const;

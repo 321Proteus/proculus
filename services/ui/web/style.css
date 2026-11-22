@@ -203,3 +203,7 @@ fieldset.plain { border: 0; margin: 0; padding: 0; min-width: 0; }
 .chip.cat-admin { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 .chip.cat-staging { background: #fefce8; color: #a16207; border-color: #fde68a; }
 .chip.cat-other { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
+
+.sig-editor { width: 100%; min-height: 320px; font-size: 12px; line-height: 1.5; tab-size: 2; white-space: pre; overflow: auto; resize: vertical; }
+.sig-help { margin: 8px 0; font-size: 12.5px; }
+.sig-help summary { cursor: pointer; color: var(--accent); font-weight: 600; }

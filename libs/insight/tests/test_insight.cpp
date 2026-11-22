@@ -28,6 +28,7 @@ static ServiceRecord svc(uint16_t port, const char* name, const char* product = 
 static ServiceRecord web(uint16_t port, std::vector<DetectionRecord> dets, const char* title = "") {
 	ServiceRecord s = svc(port, "http", "nginx", "1.24.0");
 	s.web = WebRecord{};
+	s.web->status = 200; // a real web record always has a status; 0 means "detections on a service that is not a web service"
 	s.web->title = title;
 	s.web->detections = std::move(dets);
 	return s;

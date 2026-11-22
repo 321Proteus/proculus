@@ -227,6 +227,11 @@ int serve_command(int argc, char** argv) {
 			if (!store_dir.empty()) scan_config = (std::filesystem::path(store_dir) / "scan-config.json").string();
 			else if (!accounts_dir.empty()) scan_config = (std::filesystem::path(accounts_dir) / "scan-config.json").string();
 		}
+		std::filesystem::path sig_file; // the administrator's own signatures live next to the scan settings
+		if (!scan_config.empty()) sig_file = std::filesystem::path(scan_config).parent_path() / "custom-signatures.json";
+		SignatureStore signature_store(sig_file);
+		if (sig_file.empty()) std::cerr << "proculus: note: no place for custom signatures (give --scan-config FILE); changes made in the UI will be lost on restart\n";
+		else scans.set_custom_signatures(sig_file);
 		if (scan_config.empty()) {
 			std::cerr << "proculus: note: no place for the scan settings (give --scan-config FILE); changes made in the UI will be lost on restart\n";
 		} else {
@@ -235,7 +240,7 @@ int serve_command(int argc, char** argv) {
 			if (scans.load_settings(&problem)) std::cerr << "proculus: scan settings loaded from " << scan_config << (scans.enabled() ? " (scans ON)" : " (scans off)") << "\n";
 			else if (!problem.empty()) std::cerr << "proculus: WARNING: ignoring " << scan_config << ": " << problem << "\n";
 		}
-		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get());
+		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get(), &signature_store);
 		const int port = server.bind();
 		std::unique_ptr<UiServer> ui_server;
 		int ui_port = 0;

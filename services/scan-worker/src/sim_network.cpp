@@ -179,6 +179,13 @@ SimNetwork SimNetwork::generate(
 	return net;
 }
 
+bool SimNetwork::add_host(SimHost host) {
+	auto it = std::lower_bound(hosts_.begin(), hosts_.end(), host.ip, [](const SimHost& h, uint32_t v) { return h.ip < v; });
+	if (it != hosts_.end() && it->ip == host.ip) return false;
+	hosts_.insert(it, std::move(host));
+	return true;
+}
+
 const SimHost* SimNetwork::find(uint32_t ip) const {
 	auto it = std::lower_bound(hosts_.begin(), hosts_.end(), ip,
 		[](const SimHost& h, uint32_t v) { return h.ip < v; });

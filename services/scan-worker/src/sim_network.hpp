@@ -49,6 +49,9 @@ public:
 	// list). About `density` of the addresses become hosts.
 	static SimNetwork generate(uint64_t seed, const std::string& networks, double density = 0.04);
 
+	// Adds a host of your own (a demo that needs something particular). False if that address already has one.
+	bool add_host(SimHost host);
+
 	size_t host_count() const { return hosts_.size(); }
 	const std::vector<SimHost>& hosts() const { return hosts_; }
 	const SimHost* find(uint32_t ip) const;

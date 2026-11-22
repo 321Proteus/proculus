@@ -76,4 +76,27 @@ WebStageResult run_web_stage(RunRecord& run, const RunnerConfig& cfg, HttpTransp
 	return out;
 }
 
+size_t run_service_detections(RunRecord& run, const sig::SignatureSet& custom_signatures) {
+	if (custom_signatures.enabled_count() == 0) return 0;
+	size_t found_total = 0;
+	for (HostRecord& h : run.hosts)
+		for (ServiceRecord& s : h.services) {
+			if (s.web || web_service_scheme(s.name, s.port)) continue; // web services are probed, not guessed
+			sig::Evidence ev;
+			ev.set("port", static_cast<int>(s.port));
+			if (!s.name.empty()) ev.set("service.name", s.name);
+			if (!s.product.empty()) ev.set("service.product", s.product);
+			if (!s.version.empty()) ev.set("service.version", s.version);
+			if (!h.hostname.empty()) ev.set_list("hostnames", {h.hostname});
+			const std::vector<sig::Detection> found = sig::evaluate(custom_signatures, ev);
+			if (found.empty()) continue;
+			HttpObservation none; // no HTTP exchange: status 0
+			none.ip = h.ip;
+			none.port = s.port;
+			s.web = to_web_record(none, found);
+			found_total += found.size();
+		}
+	return found_total;
+}
+
 } // namespace proculus

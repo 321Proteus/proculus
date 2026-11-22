@@ -61,6 +61,7 @@ struct Runner::Impl {
 	bool scheduled = false;
 	sig::SignatureSet signatures;
 	std::unique_ptr<HttpTransport> own_transport;
+	sig::SignatureSet custom_signatures; // the custom files only, for services that are not web services (see run_service_detections)
 
 	std::atomic<bool> stop{false};
 	std::atomic<bool> cancel{false};
@@ -403,7 +404,9 @@ Runner::Runner(RunnerConfig config, RunnerDeps deps) : impl_(std::make_unique<Im
 		for (const std::string& path : i.cfg.web.signature_paths) {
 			std::error_code ec;
 			const std::filesystem::path fp(path);
-			sig::LoadResult r = std::filesystem::is_directory(fp, ec) ? i.signatures.add_directory(fp) : i.signatures.add_file(fp);
+			const bool dir = std::filesystem::is_directory(fp, ec);
+			sig::LoadResult r = dir ? i.signatures.add_directory(fp) : i.signatures.add_file(fp);
+			if (dir) i.custom_signatures.add_directory(fp); else i.custom_signatures.add_file(fp); // the same files, kept apart from the built-in ones
 			for (const sig::Diagnostic& d : r.diagnostics)
 				if (d.level == sig::Diagnostic::Level::Error) problems += d.source + ": " + d.signature + ": " + d.where + ": " + d.message + "\n";
 		}
@@ -584,7 +587,7 @@ RoundReport Runner::run_round() {
 		});
 		report.web_probed = w.probed;
 		report.web_responding = w.responding;
-		report.detections = w.detections;
+		report.detections = w.detections + run_service_detections(run, s.custom_signatures);
 		for (const std::string& warning : w.warnings) report.warnings.push_back(warning);
 		if (s.stop.load()) throw RunAborted();
 		if (!run.hosts.empty()) run.source = "nmap+web";

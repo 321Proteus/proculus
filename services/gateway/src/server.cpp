@@ -68,7 +68,7 @@ struct Rule {
 const Rule kRules[] = {
 	{"GET", "/api/health", ""}, {"GET", "/api/auth", ""}, {"POST", "/api/login", ""}, {"POST", "/api/setup", ""}, {"POST", "/api/logout", "*"}, {"GET", "/api/me", "*"},
 	{"GET", "/api/runs", "data.read"}, {"GET", "/api/dashboard", "data.read"}, {"GET", "/api/services", "data.read"}, {"GET", "/api/diff", "data.read"},
-	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/export", "export"}, {"GET", "/api/scan", "data.read"}, {"GET", "/api/edits", "data.read"},
+	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/export", "export"}, {"GET", "/api/signatures", "data.read"}, {"POST", "/api/signatures", "config.manage"}, {"POST", "/api/signatures/check", "config.manage"}, {"GET", "/api/scan", "data.read"}, {"GET", "/api/edits", "data.read"},
 	{"POST", "/api/edits", "data.edit"}, {"POST", "/api/edits/clear", "data.edit"},
 	{"POST", "/api/scan", "scan.run"}, {"POST", "/api/scan/plan", "scan.run"}, {"POST", "/api/scan/stop", "scan.run"},
 	{"GET", "/api/scan/config", "config.manage"}, {"POST", "/api/scan/config", "config.manage"},
@@ -116,8 +116,8 @@ std::string str_field(const Json& b, const char* key, size_t max = 200) {
 
 } // namespace
 
-WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth, EditStore* edits)
-	: store_(store), config_(std::move(config)), api_(store_, edits), scans_(scans), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
+WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth, EditStore* edits, SignatureStore* signatures)
+	: store_(store), config_(std::move(config)), api_(store_, edits), scans_(scans), signatures_(signatures), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
 	// Only SO_REUSEADDR (the library's default is SO_REUSEPORT, which lets a second server share a taken port without any error)
 	svr.set_socket_options([](socket_t sock) {
@@ -266,6 +266,35 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			auth_->record(user ? &*user : nullptr, "scan settings changed", "scan", clip(body->dump(), 300), req.remote_addr);
 		}
 	});
+	// ---- custom signatures: the list is read like the rest; checking and saving need config.manage (with login) or the control token (without)
+	svr.Get("/api/signatures", [this](const httplib::Request&, httplib::Response& res) {
+		if (!signatures_) return send_json(res, 404, {{"error", "signatures are not available on this server"}});
+		api_route(res, [&] { return signatures_->list(); });
+	});
+	auto signatures_post = [this, current_user](const httplib::Request& req, httplib::Response& res, bool save) {
+		if (!signatures_) return send_json(res, 404, {{"error", "signatures are not available on this server"}});
+		if (!auth_) {
+			switch (guard_.check(req.get_header_value("X-Proculus-Token"))) {
+			case TokenGuard::Result::Ok: break;
+			case TokenGuard::Result::Disabled: return send_json(res, 403, {{"error", "no control token is configured"}});
+			case TokenGuard::Result::Locked: return send_json(res, 429, {{"error", "too many wrong tokens; try again in a minute"}});
+			case TokenGuard::Result::Denied: return send_json(res, 401, {{"error", "wrong or missing control token"}});
+			}
+		}
+		const auto body = json_body(req, res);
+		if (!body) return;
+		api_route(res, [&] {
+			if (!body->is_object() || !body->contains("text") || !(*body)["text"].is_string()) throw ApiError(400, "\"text\" must be the signatures document as text");
+			const std::string text = (*body)["text"].get<std::string>();
+			return save ? signatures_->save(text) : signatures_->check(text);
+		});
+		if (save && auth_ && res.status == 200) {
+			const auto user = current_user(req);
+			auth_->record(user ? &*user : nullptr, "signatures saved", "signatures", "", req.remote_addr);
+		}
+	};
+	svr.Post("/api/signatures", [signatures_post](const httplib::Request& req, httplib::Response& res) { signatures_post(req, res, true); });
+	svr.Post("/api/signatures/check", [signatures_post](const httplib::Request& req, httplib::Response& res) { signatures_post(req, res, false); });
 	svr.Get("/api/hosts", [this](const httplib::Request&, httplib::Response& res) { api_route(res, [&] { return api_.hosts(); }); });
 
 	// ---- user edits: read like the rest; changing needs data.edit (with login) or the control token (without)

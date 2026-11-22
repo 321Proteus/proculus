@@ -76,7 +76,7 @@ Interest score_service(const ServiceRecord& s) {
 			}
 		}
 		score += extra;
-		if (!usual_web_port(s.port)) {
+		if (s.web->status > 0 && !usual_web_port(s.port)) { // (status 0: a detection on a service that is not a web service)
 			score += 5;
 			out.reasons.push_back("web service on an unusual port (" + std::to_string(s.port) + ")");
 		}

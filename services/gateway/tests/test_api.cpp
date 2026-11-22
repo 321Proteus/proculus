@@ -23,6 +23,7 @@ static ServiceRecord svc(uint16_t port, const char* name, const char* product = 
 static ServiceRecord admin_web(uint16_t port, const char* title) {
 	ServiceRecord s = svc(port, "http", "nginx", "1.24.0");
 	s.web = WebRecord{};
+	s.web->status = 200;
 	s.web->title = title;
 	DetectionRecord d;
 	d.id = "phpmyadmin";

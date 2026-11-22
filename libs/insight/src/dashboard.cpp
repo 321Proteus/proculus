@@ -75,7 +75,7 @@ Dashboard build_dashboard(const RunRecord& latest, const RunRecord* previous, si
 	for (const HostRecord& h : latest.hosts)
 		for (const ServiceRecord& s : h.services) {
 			if (!s.web) continue;
-			d.web_services++;
+			if (s.web->status > 0) d.web_services++;
 			for (const DetectionRecord& det : s.web->detections) {
 				d.detections++;
 				categories[det.category]++;

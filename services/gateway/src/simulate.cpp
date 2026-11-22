@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "proculus/netutil/cidr.h"
+#include "proculus/netutil/ipset.hpp"
 
 namespace proculus {
 
@@ -80,7 +81,24 @@ private:
 } // namespace
 
 Simulation::Simulation(uint64_t seed, const std::string& nets, double density)
-	: net(SimNetwork::generate(seed, nets, density)), networks(nets), allowed_ports("22,25,80,443,554,993,3306,5432,8080,8443"), transport(std::make_unique<SimTransport>(this)) {}
+	: net(SimNetwork::generate(seed, nets, density)), networks(nets), allowed_ports("22,25,80,443,554,993,3306,5432,8080,8443,25565"), transport(std::make_unique<SimTransport>(this)) {
+	// Two Minecraft servers (not a web service: a custom signature can recognise them from the port and what nmap says)
+	IpSet all;
+	all.add_list(nets);
+	if (pc_ipset_range_count(all.raw()) > 0) {
+		const pc_range first = pc_ipset_range_at(all.raw(), 0);
+		const struct { uint64_t offset; const char* name; const char* version; } servers[] = {{100, "mc1.lab", "1.20.4"}, {200, "mc2.lab", "1.21.1"}};
+		for (const auto& m : servers) {
+			if (first.lo + m.offset > first.hi) continue;
+			SimHost h;
+			h.ip = static_cast<uint32_t>(first.lo + m.offset);
+			h.hostname = m.name;
+			h.role = "minecraft";
+			h.services = {SimService{25565, "minecraft", "Minecraft", m.version, "", 1, INT_MAX, 0, ""}};
+			net.add_host(std::move(h));
+		}
+	}
+}
 
 RunnerDeps Simulation::deps(const std::shared_ptr<Simulation>& sim) {
 	RunnerDeps d;
