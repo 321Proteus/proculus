@@ -1,6 +1,7 @@
 #include "scan_control.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <set>
@@ -12,6 +13,7 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "planner.hpp"
 #include "proculus/netutil/ipset.hpp"
@@ -185,6 +187,24 @@ ScanPolicy apply_settings(ScanPolicy p, const Json& body) {
 }
 
 } // namespace
+
+// Is `program` runnable: a path that is executable, or a name found on PATH?
+bool executable_found(const std::string& program) {
+	if (program.empty()) return false;
+	if (program.find('/') != std::string::npos) return ::access(program.c_str(), X_OK) == 0;
+	const char* path = std::getenv("PATH");
+	if (!path) return false;
+	std::string rest = path;
+	size_t from = 0;
+	while (from <= rest.size()) {
+		const size_t colon = rest.find(':', from);
+		const std::string dir = rest.substr(from, colon == std::string::npos ? std::string::npos : colon - from);
+		if (!dir.empty() && ::access((dir + "/" + program).c_str(), X_OK) == 0) return true;
+		if (colon == std::string::npos) break;
+		from = colon + 1;
+	}
+	return false;
+}
 
 ScanRequest parse_scan_request(const Json& body) {
 	if (!body.is_object()) bad("the request must be a JSON object");
@@ -529,6 +549,8 @@ Json ScanController::plan(const ScanRequest& r) const {
 void ScanController::start(const ScanRequest& r) {
 	Impl& i = *impl_;
 	RunnerConfig cfg = i.validate(r);
+	if (!i.base.make_backend && !executable_found(cfg.nmap_path)) // a real scan (not a test or the simulation) needs nmap
+		throw ApiError(400, "nmap was not found (looked for \"" + cfg.nmap_path + "\" on the PATH). Install nmap (https://nmap.org/download), or start with --scan-nmap PATH; the simulation (--simulate) needs no nmap");
 	std::lock_guard<std::mutex> l(i.m);
 	if (i.running) throw ApiError(409, "a scan is already running");
 	if (i.worker.joinable()) i.worker.join(); // the previous one has finished

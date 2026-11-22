@@ -1,5 +1,7 @@
 #include "render.hpp"
 
+#include "dojo.hpp"
+
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
@@ -10,7 +12,8 @@ Format parse_format(const std::string& name) {
 	if (name == "text") return Format::Text;
 	if (name == "json") return Format::Json;
 	if (name == "csv") return Format::Csv;
-	throw std::invalid_argument("unknown format '" + name + "' (use text, json or csv)");
+	if (name == "defectdojo") return Format::DefectDojo;
+	throw std::invalid_argument("unknown format '" + name + "' (use text, json, csv or defectdojo)");
 }
 
 std::string csv_field(const std::string& value, bool guard) {
@@ -82,8 +85,9 @@ std::string run_csv(const RunRecord& run) {
 
 } // namespace
 
-std::string render_run(const RunRecord& run, Format f) {
+std::string render_run(const RunRecord& run, Format f, int min_level) {
 	switch (f) {
+	case Format::DefectDojo: return render_dojo(run, min_level);
 	case Format::Json: return dump_json(run_to_json(run), 2) + "\n";
 	case Format::Csv: return run_csv(run);
 	case Format::Text: return run_text(run);
@@ -92,6 +96,7 @@ std::string render_run(const RunRecord& run, Format f) {
 }
 
 std::string render_list(const std::vector<RunSummary>& runs, Format f) {
+	if (f == Format::DefectDojo) throw std::invalid_argument("the defectdojo format is for a single run (use show)");
 	std::ostringstream o;
 	switch (f) {
 	case Format::Json: {
@@ -108,6 +113,7 @@ std::string render_list(const std::vector<RunSummary>& runs, Format f) {
 			o << r.id << "," << csv_field(r.source) << "," << csv_field(r.started) << "," << csv_field(r.finished) << ","
 			  << r.hosts << "," << r.services << "\n";
 		return o.str();
+	case Format::DefectDojo: break;
 	case Format::Text:
 		if (runs.empty()) return "no runs stored\n";
 		o << pad("RUN", 6) << pad("SOURCE", 8) << pad("STARTED", 22) << pad("FINISHED", 22) << pad("HOSTS", 7) << "SERVICES\n";

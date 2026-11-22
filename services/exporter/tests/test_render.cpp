@@ -3,6 +3,7 @@
 #include <cassert>
 #include <sstream>
 
+#include "dojo.hpp"
 #include "render.hpp"
 
 using namespace proculus;
@@ -118,7 +119,51 @@ static void test_list() {
 	assert(Json::parse(render_list({}, Format::Json)).empty());
 }
 
+static void test_defectdojo() {
+	assert(parse_format("defectdojo") == Format::DefectDojo);
+	assert(parse_dojo_min_level("info") == 0 && parse_dojo_min_level("high") == 3);
+	bool threw = false;
+	try { parse_dojo_min_level("critical"); } catch (const std::invalid_argument&) { threw = true; }
+	assert(threw);
+	threw = false;
+	try { render_list({}, Format::DefectDojo); } catch (const std::invalid_argument&) { threw = true; }
+	assert(threw);
+
+	RunRecord r = sample();
+	ServiceRecord telnet;
+	telnet.port = 23;
+	telnet.name = "telnet";
+	r.hosts[0].services.push_back(telnet);
+	r.hosts[0].services[0].web = WebRecord{};
+	r.hosts[0].services[0].web->detections.push_back(DetectionRecord{ "wp", "WordPress", "cms", 0.9, 5, "6.4.2", true, {}, { "meta generator" } });
+
+	Json j = Json::parse(render_run(r, Format::DefectDojo, 0));
+	assert(j.at("findings").size() == 2);
+	const Json* wp = nullptr;
+	for (const Json& f : j.at("findings"))
+		if (f.at("unique_id_from_tool") == "10.20.0.12:80/tcp") wp = &f;
+	assert(wp);
+	assert(wp->at("date") == "2026-11-22" && wp->at("tags").size() == 2 && wp->at("tags")[1] == "cms");
+	assert(wp->at("endpoints")[0].at("host") == "10.20.0.12" && wp->at("endpoints")[0].at("port") == 80);
+	assert(wp->at("description").get<std::string>().find("WordPress 6.4.2") != std::string::npos);
+	assert(wp->at("description").get<std::string>().find("meta generator") != std::string::npos);
+
+	// the level filter drops what is below it
+	Json high = Json::parse(render_run(r, Format::DefectDojo, 3));
+	for (const Json& f : high.at("findings")) assert(f.at("severity") == "High");
+	assert(high.at("findings").size() < 2);
+
+	// text from scanned machines can not become Markdown, HTML or control characters
+	assert(dojo_text("[x](http://evil) <b>\x1b[2J") == "\\[x\\]\\(http://evil\\) \\<b\\>\x20\\[2J");
+	assert(dojo_text(std::string(500, 'a')).size() == 203);
+	assert(dojo_text("\xc3\xa9\xc3\xa9", 3) == "\xc3\xa9...");
+	r.hosts[0].hostname = "![img](http://evil/x.png)";
+	std::string out = render_run(r, Format::DefectDojo, 0);
+	assert(out.find("![img]") == std::string::npos);
+}
+
 int main() {
+	test_defectdojo();
 	test_formats();
 	test_json_is_the_stored_form();
 	test_csv();

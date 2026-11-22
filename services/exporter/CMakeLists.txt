@@ -1,6 +1,6 @@
-add_library(exporter_core STATIC src/render.cpp)
+add_library(exporter_core STATIC src/render.cpp src/dojo.cpp)
 target_include_directories(exporter_core PUBLIC src)
-target_link_libraries(exporter_core PUBLIC proculus_results)
+target_link_libraries(exporter_core PUBLIC proculus_results proculus_insight)
 
 add_executable(exporter src/main.cpp)
 target_link_libraries(exporter PRIVATE exporter_core)

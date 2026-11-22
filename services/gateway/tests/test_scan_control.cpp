@@ -208,6 +208,24 @@ static void test_stop_and_one_at_a_time() {
 	ctl.start(req({"10.20.0.0/24"}));
 }
 
+// A real scan (no test backend) without nmap is refused with a clear message, not retried to death.
+void test_missing_nmap() {
+	FileResultStore store(scratch("nmap"));
+	ScanPolicy policy;
+	policy.enabled = true;
+	policy.scope = "127.0.0.1";
+	policy.allowed_ports = "80";
+	policy.allow_reserved = true;
+	policy.nmap_path = "/nonexistent/dir/nmap";
+	ScanController ctl(policy, &store); // no backend given: it would run the real nmap
+	assert(api_error(400, [&] { ctl.start(req({"127.0.0.1"})); }, "nmap was not found"));
+	assert(ctl.status()["state"] == "idle");
+	ScanPolicy by_name = policy;
+	by_name.nmap_path = "definitely-not-a-program-zzz";
+	ScanController ctl2(by_name, &store);
+	assert(api_error(400, [&] { ctl2.start(req({"127.0.0.1"})); }, "PATH"));
+}
+
 // Scan settings: changed at run time, kept under the operator's ceiling, saved to a file.
 void test_settings() {
 	FileResultStore store(scratch("settings"));
@@ -303,5 +321,6 @@ int main() {
 	test_controller();
 	test_stop_and_one_at_a_time();
 	test_settings();
+	test_missing_nmap();
 	return 0;
 }
