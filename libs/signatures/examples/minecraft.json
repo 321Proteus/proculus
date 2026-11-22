@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "minecraft-server",
+      "name": "Minecraft server",
+      "category": "other",
+      "tags": ["game", "not-web"],
+      "interest": 2,
+      "description": "A Minecraft (Java Edition) game server. Usually not meant to be reachable from outside. Not a web service: the signature uses what nmap found (port and service), nothing is sent to the server.",
+      "threshold": 0.5,
+      "signals": [
+        { "weight": 0.6, "label": "the default Minecraft port", "match": { "field": "port", "op": "equals", "value": 25565 } },
+        {
+          "weight": 0.9,
+          "label": "nmap identified it as Minecraft",
+          "match": {
+            "any": [
+              { "field": "service.name", "op": "equals", "value": "minecraft" },
+              { "field": "service.product", "op": "contains", "value": "Minecraft" }
+            ]
+          }
+        }
+      ],
+      "version": { "field": "service.version", "regex": "^([0-9][0-9.]*)" },
+      "examples": [
+        {
+          "name": "identified by nmap, with its version",
+          "evidence": { "port": 25565, "service.name": "minecraft", "service.product": "Minecraft", "service.version": "1.20.4" },
+          "version": "1.20.4"
+        },
+        { "name": "the default port alone is enough (60 %)", "evidence": { "port": 25565 } },
+        { "name": "Minecraft on another port", "evidence": { "port": 25570, "service.name": "minecraft" } },
+        { "name": "some other service", "evidence": { "port": 22, "service.name": "ssh" }, "expect": "no-match" }
+      ]
+    }
+  ]
+}
