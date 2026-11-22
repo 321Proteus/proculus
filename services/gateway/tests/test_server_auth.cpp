@@ -22,10 +22,10 @@ public:
 		std::string name, password, role;
 		bool disabled = false;
 	};
-	FakeAuth() {
+	explicit FakeAuth(bool empty = false) {
 		roles_ = {{"admin", "All", web::all_permissions(), true, 0}, {"manager", "Runs scans", {"data.read", "data.edit", "data.create", "data.delete", "export", "scan.run"}, true, 0},
 			{"viewer", "Read only", {"data.read", "export"}, true, 0}};
-		users_ = {{1, "ann", "ann-password-1", "admin"}, {2, "mia", "mia-password-1", "manager"}, {3, "vic", "vic-password-1", "viewer"}};
+		if (!empty) users_ = {{1, "ann", "ann-password-1", "admin"}, {2, "mia", "mia-password-1", "manager"}, {3, "vic", "vic-password-1", "viewer"}};
 	}
 	std::optional<web::AuthUser> verify(const std::string& n, const std::string& p) override {
 		std::lock_guard<std::mutex> l(m);
@@ -33,7 +33,17 @@ public:
 			if (u.name == n && u.password == p && !u.disabled) return as_user(u);
 		return std::nullopt;
 	}
-	bool has_users() override { return true; }
+	bool has_users() override {
+		std::lock_guard<std::mutex> l(m);
+		return !users_.empty();
+	}
+	web::UserInfo create_first_admin(const std::string& n, const std::string& p) override {
+		std::lock_guard<std::mutex> l(m);
+		if (p.size() < 10) throw web::AuthError(400, "the password must have at least 10 characters");
+		if (!users_.empty()) throw web::AuthError(409, "the system is already set up");
+		users_.push_back({1, n, p, "admin"});
+		return {1, n, "admin", false, ""};
+	}
 	std::vector<web::UserInfo> users() override {
 		std::lock_guard<std::mutex> l(m);
 		std::vector<web::UserInfo> out;
@@ -92,6 +102,10 @@ private:
 	std::vector<U> users_;
 	std::vector<web::RoleInfo> roles_;
 };
+
+static httplib::Result login_on(httplib::Client& c, const std::string& user, const std::string& pass) {
+	return c.Post("/api/login", Json{{"username", user}, {"password", pass}}.dump(), "application/json");
+}
 
 static ServiceRecord svc(uint16_t port, const char* name) {
 	ServiceRecord s;
@@ -229,6 +243,82 @@ int main() {
 
 	server.stop();
 	t.join();
+
+	// ---- first-run setup: no accounts yet, a setup token printed on the console
+	{
+		FakeAuth empty(true);
+		ServerConfig scfg;
+		scfg.port = 0;
+		scfg.setup_token = "setup-token-0123456789abcdef";
+		WebServer sserver(store, scfg, nullptr, &empty);
+		const int sport = sserver.bind();
+		std::thread st([&] { sserver.run(); });
+		httplib::Client sc("127.0.0.1", sport);
+		sc.set_read_timeout(5);
+		auto setup = [&](const std::string& token, const std::string& user, const std::string& pass) {
+			return sc.Post("/api/setup", Json{{"setup_token", token}, {"username", user}, {"password", pass}}.dump(), "application/json");
+		};
+
+		auto st0 = Json::parse(sc.Get("/api/auth")->body);
+		assert(st0["enabled"] == true && st0["has_users"] == false && st0["setup_required"] == true);
+		assert(sc.Get("/api/runs")->status == 401); // nothing is open before setup either
+		assert(login_on(sc, "x", "y")->status == 401);
+		assert(setup("wrong-token", "first.admin", "first admin password")->status == 401);
+		assert(setup("", "first.admin", "first admin password")->status == 401);
+		assert(sc.Post("/api/setup", "{not json", "application/json")->status == 400);
+		assert(sc.Post("/api/setup", "x=1", "application/x-www-form-urlencoded")->status == 415);
+		assert(!empty.has_users()); // wrong attempts created nothing
+		assert(setup("setup-token-0123456789abcdef", "first.admin", "short")->status == 400); // the token is right, the password is not
+		assert(!empty.has_users());
+
+		auto made = setup("setup-token-0123456789abcdef", "first.admin", "first admin password");
+		assert(made && made->status == 200);
+		const Json made_json = Json::parse(made->body);
+		assert(made_json["user"]["role"] == "admin" && made_json["user"]["permissions"].size() == 8);
+		assert(sc.Get("/api/users", httplib::Headers{{"X-Proculus-Session", made_json["token"].get<std::string>()}})->status == 200); // signed in as the new admin
+		assert(setup("setup-token-0123456789abcdef", "second.admin", "second admin password")->status == 409); // once only
+		assert(setup("wrong-token", "second.admin", "second admin password")->status == 409);
+		auto st1 = Json::parse(sc.Get("/api/auth")->body);
+		assert(st1["has_users"] == true && st1["setup_required"] == false);
+		assert(login_on(sc, "first.admin", "first admin password")->status == 200);
+
+		sserver.stop();
+		st.join();
+	}
+	// guessing the setup token is limited
+	{
+		FakeAuth empty(true);
+		ServerConfig scfg;
+		scfg.port = 0;
+		scfg.setup_token = "setup-token-0123456789abcdef";
+		WebServer sserver(store, scfg, nullptr, &empty);
+		const int sport = sserver.bind();
+		std::thread st([&] { sserver.run(); });
+		httplib::Client sc("127.0.0.1", sport);
+		sc.set_read_timeout(5);
+		for (int i = 0; i < 5; i++) sc.Post("/api/setup", Json{{"setup_token", "guess" + std::to_string(i)}, {"username", "a.b.c"}, {"password", "long enough pw"}}.dump(), "application/json");
+		assert(sc.Post("/api/setup", Json{{"setup_token", "setup-token-0123456789abcdef"}, {"username", "first.admin"}, {"password", "first admin password"}}.dump(), "application/json")->status == 429);
+		assert(!empty.has_users());
+		sserver.stop();
+		st.join();
+	}
+	// without a setup token, setup is not offered
+	{
+		FakeAuth empty(true);
+		ServerConfig scfg;
+		scfg.port = 0;
+		WebServer sserver(store, scfg, nullptr, &empty);
+		const int sport = sserver.bind();
+		std::thread st([&] { sserver.run(); });
+		httplib::Client sc("127.0.0.1", sport);
+		sc.set_read_timeout(5);
+		assert(Json::parse(sc.Get("/api/auth")->body)["setup_required"] == false);
+		assert(sc.Post("/api/setup", Json{{"setup_token", ""}, {"username", "first.admin"}, {"password", "first admin password"}}.dump(), "application/json")->status == 403);
+		assert(!empty.has_users());
+		sserver.stop();
+		st.join();
+	}
+
 	fs::remove_all(dir);
 	return 0;
 }

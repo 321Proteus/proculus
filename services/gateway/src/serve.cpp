@@ -12,6 +12,7 @@
 #include "proculus/pgstore/pgstore.hpp"
 #endif
 #ifdef PROCULUS_HAVE_AUTH
+#include "proculus/auth/fileauth.hpp"
 #include "proculus/auth/pgauth.hpp"
 #endif
 #include "scan_control.hpp"
@@ -36,9 +37,9 @@ void usage() {
 	          << "  --db URL          read and write runs in Postgres instead of --store (or $PROCULUS_DB_URL; keys from $PROCULUS_KEY / $PROCULUS_KEY_FILE)\n"
 	          << "  --db-migrations D where the SQL migrations are (default $PROCULUS_MIGRATIONS_DIR)\n"
 #endif
-#ifdef PROCULUS_HAVE_AUTH
-	          << "  --auth            require login: users and roles in the database (create the first one with `gateway user add`)\n"
-#endif
+	          << "login (on by default: the first visit asks for the setup token printed here and creates the administrator)\n"
+	          << "  --accounts DIR    where accounts are kept without a database (default: DIR/accounts inside --store)\n"
+	          << "  --no-auth         NO LOGIN: anyone who can reach the server can read everything (local use only)\n"
 	          << "  --port N          port to listen on (default 8081)\n"
 	          << "  --bind ADDR       address to listen on (default 127.0.0.1)\n"
 	          << "  --allow-host H    accept requests addressed to this host name too (repeatable)\n"
@@ -50,13 +51,13 @@ void usage() {
 	          << "  --scan-allow-privileged raw-socket scans (needs root / CAP_NET_RAW)   --scan-no-web  no web probing\n"
 	          << "  --scan-allow-reserved   allow loopback etc. (tests, local labs)       --scan-nmap PATH   --scan-signatures PATH (repeatable)\n"
 	          << "  Starting or stopping a scan needs the control token ($PROCULUS_CONTROL_TOKEN, or a random one printed at startup).\n"
-	          << "Without --auth there is no login: keep it on the local machine.\n";
+	          << "Accounts: with --db in Postgres, otherwise in files; create more with `gateway user add`.\n";
 }
 
 } // namespace
 
 int serve_command(int argc, char** argv) {
-	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_DB, OPT_DB_MIGRATIONS, OPT_AUTH, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
+	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_DB, OPT_DB_MIGRATIONS, OPT_AUTH, OPT_NO_AUTH, OPT_ACCOUNTS, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
 		OPT_SCAN_ALLOW_RESERVED, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
 	static const option opts[] = {
 		{"store", required_argument, nullptr, OPT_STORE}, {"port", required_argument, nullptr, OPT_PORT},
@@ -64,6 +65,8 @@ int serve_command(int argc, char** argv) {
 		{"db", required_argument, nullptr, OPT_DB},
 		{"db-migrations", required_argument, nullptr, OPT_DB_MIGRATIONS},
 		{"auth", no_argument, nullptr, OPT_AUTH},
+		{"no-auth", no_argument, nullptr, OPT_NO_AUTH},
+		{"accounts", required_argument, nullptr, OPT_ACCOUNTS},
 		{"enable-scans", no_argument, nullptr, OPT_ENABLE_SCANS},
 		{"scan-scope", required_argument, nullptr, OPT_SCAN_SCOPE},
 		{"scan-ports", required_argument, nullptr, OPT_SCAN_PORTS},
@@ -79,7 +82,8 @@ int serve_command(int argc, char** argv) {
 	ServerConfig cfg;
 	ScanPolicy policy;
 	std::string store_dir, db_url, db_migrations;
-	bool use_auth = false;
+	bool use_auth = true; // login is the default; --no-auth turns it off
+	std::string accounts_dir;
 	try {
 		optind = 1;
 		opterr = 0;
@@ -93,6 +97,8 @@ int serve_command(int argc, char** argv) {
 			case OPT_DB: db_url = optarg; break;
 			case OPT_DB_MIGRATIONS: db_migrations = optarg; break;
 			case OPT_AUTH: use_auth = true; break;
+			case OPT_NO_AUTH: use_auth = false; break;
+			case OPT_ACCOUNTS: accounts_dir = optarg; break;
 			case OPT_ENABLE_SCANS: policy.enabled = true; break;
 			case OPT_SCAN_SCOPE: policy.scope = optarg; break;
 			case OPT_SCAN_PORTS: policy.allowed_ports = optarg; break;
@@ -127,16 +133,32 @@ int serve_command(int argc, char** argv) {
 			store_owner = std::make_unique<FileResultStore>(store_dir);
 		}
 		ResultStore& store = *store_owner;
-		if (const char* env = std::getenv("PROCULUS_AUTH"); env && std::string(env) == "1") use_auth = true;
+		if (const char* env = std::getenv("PROCULUS_AUTH"); env && std::string(env) == "0") use_auth = false;
 		std::unique_ptr<web::AuthBackend> auth_backend;
 		if (use_auth) {
 #ifdef PROCULUS_HAVE_AUTH
-			if (db_url.empty()) throw std::invalid_argument("--auth needs the database (--db URL or $PROCULUS_DB_URL)");
-			auth_backend = auth::open_pg_auth(db_url, db_migrations.empty() ? default_migrations_dir() : std::filesystem::path(db_migrations));
-			if (!auth_backend->has_users()) std::cerr << "proculus: there are no users yet: create the first administrator with `gateway user add NAME --role admin`\n";
+			if (!db_url.empty()) {
+				auth_backend = auth::open_pg_auth(db_url, db_migrations.empty() ? default_migrations_dir() : std::filesystem::path(db_migrations));
+			} else {
+				if (accounts_dir.empty()) accounts_dir = (std::filesystem::path(store_dir) / "accounts").string();
+				auth_backend = std::make_unique<auth::FileAuthBackend>(accounts_dir);
+			}
+			if (!auth_backend->has_users()) {
+				if (const char* env = std::getenv("PROCULUS_SETUP_TOKEN"); env && *env) {
+					cfg.setup_token = env;
+					if (cfg.setup_token.size() < 16) throw std::invalid_argument("PROCULUS_SETUP_TOKEN is too short (use at least 16 characters)");
+				} else {
+					cfg.setup_token = TokenGuard::generate();
+				}
+				std::cerr << "proculus: FIRST-RUN SETUP: there are no accounts yet. Open the UI and create the administrator with this setup token:\n"
+				          << "          " << cfg.setup_token << "\n"
+				          << "          (or from the command line: gateway user add YOUR.NAME --role admin)\n";
+			}
 #else
-			throw std::invalid_argument("this build has no login support (libpq and libsodium were not found)");
+			throw std::invalid_argument("this build has no login support (libsodium was not found); to run without login use --no-auth");
 #endif
+		} else {
+			std::cerr << "proculus: WARNING: login is OFF (--no-auth): anyone who can reach this server can read everything\n";
 		}
 		if (policy.enabled && !use_auth) { // without login, starting scans needs the control token
 			if (const char* env = std::getenv("PROCULUS_CONTROL_TOKEN"); env && *env) {
@@ -153,7 +175,7 @@ int serve_command(int argc, char** argv) {
 		g_server = &server;
 		std::signal(SIGINT, on_signal);
 		std::signal(SIGTERM, on_signal);
-		std::cerr << "proculus: serving " << store_name << " on http://" << cfg.bind << ":" << port << "/ (API, " << (auth_backend ? "login required" : "no login yet") << ")\n";
+		std::cerr << "proculus: serving " << store_name << " on http://" << cfg.bind << ":" << port << "/ (API, " << (auth_backend ? "login required" : "NO LOGIN") << ")\n";
 		server.run();
 		g_server = nullptr;
 		return 0;

@@ -8,6 +8,7 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "proculus/auth/fileauth.hpp"
 #include "proculus/auth/pgauth.hpp"
 #include "proculus/pgstore/pgstore.hpp" // default_migrations_dir
 
@@ -16,7 +17,8 @@ namespace proculus {
 namespace {
 
 void usage() {
-	std::cerr << "usage: gateway user COMMAND [options]       (database: --db URL or $PROCULUS_DB_URL)\n"
+	std::cerr << "usage: gateway user COMMAND [options]\n"
+	          << "  accounts are in Postgres (--db URL or $PROCULUS_DB_URL), or else in files: --accounts DIR, or DIR/accounts for --store DIR ($PROCULUS_STORE_DIR)\n"
 	          << "  add USERNAME --role ROLE      create an account; asks for the password (or --password-env VAR)\n"
 	          << "  list                          accounts\n"
 	          << "  roles                         roles and their permissions\n"
@@ -63,10 +65,10 @@ int64_t id_of(web::AuthBackend& b, const std::string& username) {
 } // namespace
 
 int users_command(int argc, char** argv) {
-	enum { OPT_DB = 256, OPT_MIGRATIONS, OPT_ROLE, OPT_PASSWORD_ENV, OPT_HELP };
+	enum { OPT_DB = 256, OPT_MIGRATIONS, OPT_ROLE, OPT_PASSWORD_ENV, OPT_STORE, OPT_ACCOUNTS, OPT_HELP };
 	static const option opts[] = {{"db", required_argument, nullptr, OPT_DB}, {"db-migrations", required_argument, nullptr, OPT_MIGRATIONS}, {"role", required_argument, nullptr, OPT_ROLE},
-		{"password-env", required_argument, nullptr, OPT_PASSWORD_ENV}, {"help", no_argument, nullptr, OPT_HELP}, {nullptr, 0, nullptr, 0}};
-	std::string db_url, migrations, role;
+		{"password-env", required_argument, nullptr, OPT_PASSWORD_ENV}, {"store", required_argument, nullptr, OPT_STORE}, {"accounts", required_argument, nullptr, OPT_ACCOUNTS}, {"help", no_argument, nullptr, OPT_HELP}, {nullptr, 0, nullptr, 0}};
+	std::string db_url, migrations, role, store_dir, accounts_dir;
 	const char* password_env = nullptr;
 	try {
 		optind = 1;
@@ -77,6 +79,8 @@ int users_command(int argc, char** argv) {
 			case OPT_DB: db_url = optarg; break;
 			case OPT_MIGRATIONS: migrations = optarg; break;
 			case OPT_ROLE: role = optarg; break;
+			case OPT_STORE: store_dir = optarg; break;
+			case OPT_ACCOUNTS: accounts_dir = optarg; break;
 			case OPT_PASSWORD_ENV: password_env = optarg; break;
 			case OPT_HELP: usage(); return 0;
 			default: throw std::invalid_argument(std::string("bad option: ") + argv[optind - 1]);
@@ -89,8 +93,18 @@ int users_command(int argc, char** argv) {
 		}
 		if (db_url.empty())
 			if (const char* env = std::getenv("PROCULUS_DB_URL")) db_url = env;
-		if (db_url.empty()) throw std::invalid_argument("no database: give --db URL or set PROCULUS_DB_URL");
-		auto backend = auth::open_pg_auth(db_url, migrations.empty() ? default_migrations_dir() : std::filesystem::path(migrations));
+		std::unique_ptr<web::AuthBackend> backend;
+		if (!db_url.empty()) {
+			backend = auth::open_pg_auth(db_url, migrations.empty() ? default_migrations_dir() : std::filesystem::path(migrations));
+		} else {
+			if (accounts_dir.empty()) {
+				if (store_dir.empty())
+					if (const char* env = std::getenv("PROCULUS_STORE_DIR")) store_dir = env;
+				if (store_dir.empty()) throw std::invalid_argument("no accounts location: give --db URL, --accounts DIR or --store DIR (or set PROCULUS_DB_URL / PROCULUS_STORE_DIR)");
+				accounts_dir = (std::filesystem::path(store_dir) / "accounts").string();
+			}
+			backend = std::make_unique<auth::FileAuthBackend>(accounts_dir);
+		}
 
 		const std::string& cmd = args[0];
 		auto need = [&](size_t n) {

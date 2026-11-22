@@ -1,9 +1,13 @@
-# Users, roles and the audit log in Postgres. Only built when libs/db is (libpq + libsodium).
-add_library(proculus_auth STATIC src/pgauth.cpp)
+# Users, roles and the audit log, in Postgres or in files. Only built when libs/db is (libpq + libsodium).
+add_library(proculus_auth STATIC src/pgauth.cpp src/fileauth.cpp)
 target_include_directories(proculus_auth PUBLIC include)
 target_link_libraries(proculus_auth PUBLIC proculus_db proculus_web nlohmann_json::nlohmann_json)
 
 if(BUILD_TESTING)
+	add_executable(test_fileauth tests/test_fileauth.cpp)
+	target_link_libraries(test_fileauth PRIVATE proculus_auth)
+	add_test(NAME fileauth COMMAND test_fileauth)
+
 	# Needs a live Postgres: set PROCULUS_TEST_DB_URL, otherwise it is skipped.
 	add_executable(test_pgauth tests/test_pgauth.cpp)
 	target_link_libraries(test_pgauth PRIVATE proculus_auth)

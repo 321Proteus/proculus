@@ -101,6 +101,19 @@ bool PgAuthBackend::has_users() {
 	return c.exec("SELECT count(*) FROM users").integer(0, 0) > 0;
 }
 
+web::UserInfo PgAuthBackend::create_first_admin(const std::string& username, const std::string& password) {
+	if (auto why = check_username(username); !why.empty()) throw AuthError(400, why);
+	if (auto why = check_password(username, password); !why.empty()) throw AuthError(400, why);
+	db::Connection c(conninfo_);
+	db::Transaction tx(c);
+	c.exec("SELECT pg_advisory_xact_lock(726600101)"); // one first-run setup at a time
+	if (c.exec("SELECT count(*) FROM users").integer(0, 0) > 0) throw AuthError(409, "the system is already set up");
+	db::Result r = c.exec("INSERT INTO users (username, password_hash, role_id) SELECT $1, $2, id FROM roles WHERE name = 'admin' RETURNING id", {username, db::hash_password(password)});
+	if (r.rows() == 0) throw AuthError(500, "the admin role is missing");
+	tx.commit();
+	return {r.integer(0, 0), username, "admin", false, ""};
+}
+
 std::vector<web::UserInfo> PgAuthBackend::users() {
 	db::Connection c(conninfo_);
 	db::Result r = c.exec(std::string("SELECT u.id, u.username, r.name, u.disabled, coalesce(to_char(u.last_login_at AT TIME ZONE 'UTC', '") + kTs +

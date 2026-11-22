@@ -65,6 +65,10 @@ public:
 	// user and a wrong password must be indistinguishable, in answer and in time.
 	virtual std::optional<AuthUser> verify(const std::string& username, const std::string& password) = 0;
 	virtual bool has_users() = 0;
+	// The very first account, as an administrator: only while there are no users at
+	// all, decided atomically (two concurrent calls cannot both succeed). Throws
+	// AuthError(409) if an account exists, AuthError(400) for a bad name or password.
+	virtual UserInfo create_first_admin(const std::string& username, const std::string& password) = 0;
 
 	virtual std::vector<UserInfo> users() = 0;
 	virtual std::vector<RoleInfo> roles() = 0;

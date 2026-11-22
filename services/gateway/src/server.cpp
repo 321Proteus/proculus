@@ -61,7 +61,7 @@ struct Rule {
 	const char *method, *path, *permission;
 };
 const Rule kRules[] = {
-	{"GET", "/api/health", ""}, {"GET", "/api/auth", ""}, {"POST", "/api/login", ""}, {"POST", "/api/logout", "*"}, {"GET", "/api/me", "*"},
+	{"GET", "/api/health", ""}, {"GET", "/api/auth", ""}, {"POST", "/api/login", ""}, {"POST", "/api/setup", ""}, {"POST", "/api/logout", "*"}, {"GET", "/api/me", "*"},
 	{"GET", "/api/runs", "data.read"}, {"GET", "/api/dashboard", "data.read"}, {"GET", "/api/services", "data.read"}, {"GET", "/api/diff", "data.read"},
 	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/scan", "data.read"},
 	{"POST", "/api/scan", "scan.run"}, {"POST", "/api/scan/plan", "scan.run"}, {"POST", "/api/scan/stop", "scan.run"},
@@ -110,7 +110,7 @@ std::string str_field(const Json& b, const char* key, size_t max = 200) {
 } // namespace
 
 WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth)
-	: store_(store), config_(std::move(config)), api_(store_), scans_(scans), guard_(config_.control_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
+	: store_(store), config_(std::move(config)), api_(store_), scans_(scans), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
 
 	std::vector<std::string> allowed = web::default_allowed_hosts();
@@ -221,7 +221,11 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 
 	// ---- login, users, roles, audit (only with an auth backend)
 	svr.Get("/api/auth", [this](const httplib::Request&, httplib::Response& res) {
-		api_route(res, [&] { return auth_ ? Json{{"enabled", true}, {"has_users", auth_->has_users()}} : Json{{"enabled", false}}; });
+		api_route(res, [&] {
+			if (!auth_) return Json{{"enabled", false}};
+			const bool users = auth_->has_users();
+			return Json{{"enabled", true}, {"has_users", users}, {"setup_required", !users && !config_.setup_token.empty()}};
+		});
 	});
 	if (!auth_) return;
 
@@ -247,6 +251,34 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			send_json(res, e.status, {{"error", e.what()}});
 		} catch (const std::exception& e) {
 			std::cerr << "gateway: login failed: " << e.what() << "\n";
+			send_json(res, 500, {{"error", "internal error"}});
+		}
+	});
+	// First-run setup: while there are no accounts, whoever knows the setup token (printed on the
+	// gateway's console) can create the first administrator. Afterwards this route only says 409.
+	svr.Post("/api/setup", [this](const httplib::Request& req, httplib::Response& res) {
+		const auto body = json_body(req, res);
+		if (!body) return;
+		try {
+			if (auth_->has_users()) return send_json(res, 409, {{"error", "the system is already set up"}});
+			switch (setup_guard_.check(str_field(*body, "setup_token", 128))) {
+			case TokenGuard::Result::Ok: break;
+			case TokenGuard::Result::Disabled: return send_json(res, 403, {{"error", "setup is not available: create the first administrator with `gateway user add`"}});
+			case TokenGuard::Result::Locked: return send_json(res, 429, {{"error", "too many wrong setup tokens; try again in a minute"}});
+			case TokenGuard::Result::Denied: return send_json(res, 401, {{"error", "wrong setup token"}});
+			}
+			const std::string username = str_field(*body, "username", 64), password = str_field(*body, "password", 200);
+			auth_->create_first_admin(username, password);
+			const auto user = auth_->verify(username, password);
+			if (!user) return send_json(res, 500, {{"error", "internal error"}});
+			auth_->record(&*user, "setup", "user:" + user->username, "first administrator created", req.remote_addr);
+			send_json(res, 200, {{"token", sessions_.create(*user)}, {"user", user_json(*user)}});
+		} catch (const web::AuthError& e) {
+			send_json(res, e.status, {{"error", e.what()}});
+		} catch (const ApiError& e) {
+			send_json(res, e.status, {{"error", e.what()}});
+		} catch (const std::exception& e) {
+			std::cerr << "gateway: setup failed: " << e.what() << "\n";
 			send_json(res, 500, {{"error", "internal error"}});
 		}
 	});

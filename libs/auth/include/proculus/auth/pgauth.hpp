@@ -20,6 +20,7 @@ public:
 
 	std::optional<web::AuthUser> verify(const std::string& username, const std::string& password) override;
 	bool has_users() override;
+	web::UserInfo create_first_admin(const std::string& username, const std::string& password) override;
 	std::vector<web::UserInfo> users() override;
 	std::vector<web::RoleInfo> roles() override;
 	web::UserInfo create_user(const std::string& username, const std::string& password, const std::string& role) override;

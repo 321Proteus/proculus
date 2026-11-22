@@ -31,6 +31,7 @@ struct ServerConfig {
 	int port = 8081;                           // 0: pick a free port (tests)
 	std::vector<std::string> allowed_hosts;    // besides localhost, 127.0.0.1 and [::1]
 	std::string control_token;                 // needed to start or stop scans (X-Proculus-Token); empty: scans cannot be controlled
+	std::string setup_token;                   // with login and no accounts yet: lets the first administrator be created (POST /api/setup); empty: setup is not offered
 };
 
 class WebServer {
@@ -56,6 +57,7 @@ private:
 	Api api_;
 	ScanController* scans_;
 	TokenGuard guard_;
+	TokenGuard setup_guard_;
 	web::AuthBackend* auth_;
 	web::SessionManager sessions_;
 	web::LoginThrottle throttle_;
