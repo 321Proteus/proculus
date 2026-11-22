@@ -28,6 +28,14 @@ static void test_title() {
 	assert(extract_title(std::string(1 << 20, ' ') + "<title>late</title>").empty()); // beyond what is inspected
 }
 
+static void test_redact_set_cookie() {
+	assert(redact_set_cookie("sid=abc123; Path=/; HttpOnly") == "sid=<redacted>; Path=/; HttpOnly");
+	assert(redact_set_cookie("sid=abc123") == "sid=<redacted>");
+	assert(redact_set_cookie("sid=a=b=c;Secure") == "sid=<redacted>;Secure");
+	assert(redact_set_cookie("sid=") == "sid=<redacted>");
+	assert(redact_set_cookie("garbage") == "<redacted>" && redact_set_cookie("=x") == "<redacted>" && redact_set_cookie("") == "<redacted>");
+}
+
 static void test_cookies() {
 	auto c = parse_set_cookie("sessionid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=3600; Domain=example.org");
 	assert(c && c->name == "sessionid" && c->value_length == 6 && c->value.empty());
@@ -151,6 +159,7 @@ static void test_headers() {
 }
 
 int main() {
+	test_redact_set_cookie();
 	test_title();
 	test_cookies();
 	test_urls();

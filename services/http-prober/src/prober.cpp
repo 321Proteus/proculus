@@ -50,6 +50,12 @@ std::string lower_copy(std::string s) {
 	return s;
 }
 
+// Set-Cookie values are session secrets: keep names and attributes only.
+void redact_cookie_headers(std::vector<Header>& headers) {
+	for (Header& h : headers)
+		if (lower_copy(h.name) == "set-cookie") h.value = redact_set_cookie(h.value);
+}
+
 bool looks_like_html(const std::string& content_type, const std::string& body) {
 	const std::string ct = lower_copy(content_type);
 	if (ct.find("html") != std::string::npos || ct.find("xml") != std::string::npos) return true;
@@ -179,6 +185,7 @@ HttpObservation HttpProber::probe(const ProbeTarget& target) {
 		obs.reason = r.reason;
 		obs.http_version = r.version;
 		obs.headers = r.headers;
+		if (!limits_.keep_cookie_values) redact_cookie_headers(obs.headers);
 		if (const std::string* s = find_header(r.headers, "Server")) obs.server = s->substr(0, 256);
 		if (const std::string* c = find_header(r.headers, "Content-Type")) obs.content_type = c->substr(0, 256);
 		obs.body = r.body;
@@ -226,6 +233,7 @@ HttpObservation HttpProber::probe(const ProbeTarget& target) {
 				const HttpResponse& r = *ex.response;
 				pr.status = r.status;
 				pr.headers = r.headers;
+				if (!limits_.keep_cookie_values) redact_cookie_headers(pr.headers);
 				if (const std::string* ct = find_header(r.headers, "Content-Type")) pr.content_type = ct->substr(0, 256);
 				if (const std::string* l = find_header(r.headers, "Location")) pr.redirect = l->substr(0, 2048);
 				pr.body = r.body;

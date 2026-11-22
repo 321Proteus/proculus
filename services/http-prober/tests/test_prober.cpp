@@ -135,6 +135,11 @@ static void test_basic_observation() {
 
 	// values only when explicitly requested
 	ProbeLimits keep = limits();
+	for (const Header& h : o.headers) assert(h.value.find("abc123secret") == std::string::npos); // not in the raw headers either
+	bool saw_cookie_header = false;
+	for (const Header& h : o.headers)
+		if (h.name == "Set-Cookie" && h.value == "PHPSESSID=<redacted>; Path=/; HttpOnly") saw_cookie_header = true;
+	assert(saw_cookie_header);
 	keep.keep_cookie_values = true;
 	HttpProber p2(net, keep, no_wait());
 	assert(p2.probe({"10.0.0.5", 443}).cookies[0].value == "abc123secret");

@@ -32,6 +32,12 @@ struct Cookie {
 // Parses one Set-Cookie header value. nullopt if it has no usable name.
 std::optional<Cookie> parse_set_cookie(const std::string& header_value, bool keep_value = false);
 
+// A Set-Cookie header value with the cookie's value replaced by "<redacted>":
+// "sid=abc123; Path=/; HttpOnly" -> "sid=<redacted>; Path=/; HttpOnly". The name
+// and attributes stay (they are what detection and reports need); the value is
+// often a session secret. A value that is not name=value becomes "<redacted>".
+std::string redact_set_cookie(const std::string& header_value);
+
 struct Url {
 	std::string scheme; // "http" or "https"
 	std::string host;   // literal IPv4 address or host name, lowercase

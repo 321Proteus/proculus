@@ -206,6 +206,14 @@ std::optional<Cookie> parse_set_cookie(const std::string& header_value, bool kee
 	return c;
 }
 
+std::string redact_set_cookie(const std::string& header_value) {
+	const size_t semi = header_value.find(';');
+	const std::string first = header_value.substr(0, semi);
+	const size_t eq = first.find('=');
+	if (eq == std::string::npos || eq == 0) return "<redacted>";
+	return first.substr(0, eq + 1) + "<redacted>" + (semi == std::string::npos ? "" : header_value.substr(semi));
+}
+
 // -------------------------------------------------------------------- urls
 
 namespace {
