@@ -210,6 +210,63 @@ std::optional<RunRecord> PgResultStore::load(int64_t id) const {
 	return run;
 }
 
+namespace {
+
+std::string to_hex(const std::vector<uint8_t>& b) {
+	static const char* d = "0123456789abcdef";
+	std::string out;
+	for (uint8_t x : b) {
+		out.push_back(d[x >> 4]);
+		out.push_back(d[x & 15]);
+	}
+	return out;
+}
+
+std::vector<uint8_t> from_hex(const std::string& s) {
+	std::vector<uint8_t> out;
+	auto nibble = [](char ch) { return ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10 : -1; };
+	for (size_t i = 0; i + 1 < s.size(); i += 2) {
+		const int hi = nibble(s[i]), lo = nibble(s[i + 1]);
+		if (hi < 0 || lo < 0) return {};
+		out.push_back(static_cast<uint8_t>(hi * 16 + lo));
+	}
+	return out;
+}
+
+[[noreturn]] void wrong_key() {
+	throw db::CryptoError("PROCULUS_KEY does not match the key this database's data was sealed with: use the original key (PROCULUS_KEY or PROCULUS_KEY_FILE), "
+	                      "or a new database");
+}
+
+// A database remembers a small sealed value (a canary): a different key is noticed at start-up,
+// not later on the first page that touches encrypted data. A database that already holds
+// sealed data but no canary (created before this check) is checked against that data.
+void check_key(const std::string& conninfo, const db::FieldCipher& cipher) {
+	static const char* kCanaryContext = "settings.key_check";
+	db::Connection c(conninfo);
+	db::Result r = c.exec("SELECT value->>'canary' FROM settings WHERE key = 'key_check'");
+	if (r.rows() == 1) {
+		try {
+			if (cipher.open(from_hex(r.str(0, 0)), kCanaryContext) != "proculus") wrong_key();
+		} catch (const db::CryptoError&) {
+			wrong_key();
+		}
+		return;
+	}
+	db::Result sample = c.exec("SELECT title_enc FROM http_observations WHERE title_enc IS NOT NULL LIMIT 1");
+	if (sample.rows() == 1) {
+		try {
+			cipher.open(sample.bytes(0, 0), "http_observations.title_enc");
+		} catch (const db::CryptoError&) {
+			wrong_key();
+		}
+	}
+	const Json value = {{"canary", to_hex(cipher.seal("proculus", kCanaryContext))}};
+	c.exec("INSERT INTO settings (key, value) VALUES ('key_check', $1::jsonb) ON CONFLICT (key) DO NOTHING", {value.dump()});
+}
+
+} // namespace
+
 std::filesystem::path default_migrations_dir() {
 	if (const char* env = std::getenv("PROCULUS_MIGRATIONS_DIR"); env && *env) return env;
 	return PROCULUS_DEFAULT_MIGRATIONS_DIR;
@@ -220,7 +277,9 @@ std::unique_ptr<ResultStore> open_pg_store(const std::string& conninfo, const st
 		db::Connection c(conninfo);
 		db::migrate(c, migrations_dir);
 	}
-	return std::make_unique<PgResultStore>(conninfo, db::FieldCipher(db::KeyRing::from_env()));
+	db::FieldCipher cipher(db::KeyRing::from_env());
+	check_key(conninfo, cipher);
+	return std::make_unique<PgResultStore>(conninfo, std::move(cipher));
 }
 
 } // namespace proculus

@@ -233,6 +233,44 @@ static void test_concurrent_saves(PgResultStore& store) {
 	for (int64_t id : ids) assert(store.load(id)->hosts.size() == 3);
 }
 
+static void test_key_check() {
+	// open_pg_store checks the key against the database: the right key opens, another is refused at start-up
+	const std::string schema = g_schema + "_k";
+	{
+		db::Connection admin(g_url);
+		admin.exec("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+		admin.exec("CREATE SCHEMA " + schema);
+	}
+	const std::string scoped = g_url + (g_url.find('?') == std::string::npos ? "?" : "&") + "options=-csearch_path%3D" + schema;
+	::unsetenv("PROCULUS_KEY_FILE");
+	auto opens = [&](const char* key) {
+		::setenv("PROCULUS_KEY", key, 1);
+		try {
+			open_pg_store(scoped, PROCULUS_MIGRATIONS_DIR);
+		} catch (const db::CryptoError& e) {
+			assert(std::string(e.what()).find("does not match") != std::string::npos);
+			return false;
+		}
+		return true;
+	};
+	assert(opens(kKey));          // a new database: the first key becomes the database's key
+	assert(opens(kKey));          // the same key again
+	assert(!opens(kOtherKey));    // another key is refused, with a clear message
+	assert(opens(kKey));
+
+	// a database with sealed data but no canary (made before the check) is checked against that data
+	{
+		db::Connection c(scoped);
+		c.exec("DELETE FROM settings WHERE key = 'key_check'");
+		PgResultStore store(scoped, cipher(kKey));
+		store.save(sample());
+	}
+	assert(!opens(kOtherKey));
+	assert(opens(kKey));
+	db::Connection admin(g_url);
+	admin.exec("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+}
+
 int main() {
 	const char* env = std::getenv("PROCULUS_TEST_DB_URL");
 	if (!env || !*env) {
@@ -259,6 +297,7 @@ int main() {
 		test_encryption(store);
 		test_failures_store_nothing(store);
 		test_concurrent_saves(store);
+		test_key_check();
 	} catch (...) {
 		db::Connection admin(g_url);
 		admin.exec("DROP SCHEMA IF EXISTS " + g_schema + " CASCADE");

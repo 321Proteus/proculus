@@ -48,6 +48,9 @@ void api_route(httplib::Response& res, Fn&& fn) {
 		send_json(res, e.status, { { "error", e.what() } });
 	} catch (const web::AuthError& e) {
 		send_json(res, e.status, { { "error", e.what() } });
+	} catch (const FormatError& e) { // stored data that cannot be read: say so, it is not an internal fault of the request
+		std::cerr << "gateway: stored data cannot be read: " << e.what() << "\n";
+		send_json(res, 500, { { "error", "the stored data cannot be read (wrong PROCULUS_KEY, or damaged data); see the gateway log" } });
 	} catch (const std::exception& e) {
 		std::cerr << "gateway: request failed: " << e.what() << "\n";
 		send_json(res, 500, { { "error", "internal error" } });

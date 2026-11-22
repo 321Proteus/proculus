@@ -549,7 +549,8 @@ async function render() {
   const view = document.getElementById('view');
   document.documentElement.lang = lang;
   try {
-    if (!auth) auth = await fetch('/api/auth').then((r) => (r.ok ? r.json() : { enabled: false })).then((a) => ({ enabled: !!a.enabled, hasUsers: a.has_users !== false, setupRequired: !!a.setup_required })).catch(() => ({ enabled: false, hasUsers: true }));
+    // asked again whenever nobody is signed in, so a server that was restarted or set up meanwhile is noticed
+    if (!auth || !session.user) auth = await fetch('/api/auth').then((r) => (r.ok ? r.json() : { enabled: false })).then((a) => ({ enabled: !!a.enabled, hasUsers: a.has_users !== false, setupRequired: !!a.setup_required })).catch(() => ({ enabled: false, hasUsers: true }));
     if (auth.enabled && session.token && !session.user) {
       try { session.user = (await api('/api/me')).user; } catch (e) { if (!(e instanceof LoginRequired)) throw e; }
     }
