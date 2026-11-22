@@ -95,6 +95,15 @@ runs, and `ui` serves the pages and passes the page's `/api/` requests on to it.
 docker compose --profile ui up --build ui                                     # both, in Docker (http://localhost:8080)
 ```
 
+The layout and look follow the Python build (`PROCULUS_SCANNER/Proculus_NEW.py`): a header with the
+emblem and status badges, seven numbered tabs, KPI cards, and the scan configuration beside live
+telemetry on the first tab. Differences are deliberate: the live panels are updated in place instead
+of being rebuilt (no flicker; the log keeps its scroll position unless you are at the bottom), the
+guided tour ("Przewodnik") measures its target only after the smooth scroll has stopped and is
+repositioned on resize, tooltips appear at the pointer, status dots actually pulse, and all motion
+is off for users who prefer reduced motion. Tabs 4-6 (CSV/JSON targets, custom signatures,
+schedule and DefectDojo) are placeholders for now.
+
 A dashboard over the saved runs (Polish or English): size of the latest run and
 what changed since the previous one, services ranked by priority with the
 reasons, detections by category, the most common technologies, and host states

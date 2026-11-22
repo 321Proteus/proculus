@@ -82,7 +82,11 @@ int main() {
 	assert(page->get_header_value("X-Content-Type-Options") == "nosniff" && page->get_header_value("X-Frame-Options") == "DENY");
 	auto js = c.Get("/app.js");
 	assert(js && js->status == 200 && js->get_header_value("Content-Type").find("javascript") != std::string::npos);
+	assert(js->body.find("setAttribute('style'") == std::string::npos && js->body.find("style.cssText") != std::string::npos); // styles go through the CSSOM: the policy blocks style attributes
 	assert(js->body.find("textContent") != std::string::npos && js->body.find("innerHTML") == std::string::npos); // untrusted text goes in as text only
+	auto icon = c.Get("/favicon.svg");
+	assert(icon && icon->status == 200 && icon->get_header_value("Content-Type").find("image/svg+xml") == 0 && icon->body.find("<svg") != std::string::npos);
+	assert(page->body.find("proculus-emblem") != std::string::npos && js->body.find("proculus-emblem") != std::string::npos); // the logo is defined once and used by the page
 	auto css = c.Get("/style.css");
 	assert(css && css->status == 200 && css->get_header_value("Content-Type").find("text/css") == 0);
 	assert(c.Get("/nothing.html")->status == 404 && c.Get("/index.html")->status == 200);

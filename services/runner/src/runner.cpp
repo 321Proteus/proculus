@@ -76,6 +76,16 @@ struct Runner::Impl {
 		: cfg(std::move(c)), deps(std::move(d)), discovery_rate(0.4, cfg.assumed_discovery_rate), services_rate(0.4, cfg.assumed_services_rate) {}
 
 	ScanProgress prog;
+	// keeps the last few answering hosts for the live view (called under the stage lock)
+	void note_host(const std::string& ip, const std::vector<int>& ports = {}) {
+		auto it = std::find_if(prog.recent.begin(), prog.recent.end(), [&](const LiveHost& h) { return h.ip == ip; });
+		if (it == prog.recent.end()) {
+			prog.recent.push_back({ip, ports});
+			if (prog.recent.size() > 8) prog.recent.erase(prog.recent.begin());
+		} else if (!ports.empty()) {
+			it->ports = ports;
+		}
+	}
 	void emit() {
 		if (deps.on_progress) deps.on_progress(prog);
 	}
@@ -438,7 +448,10 @@ RoundReport Runner::run_round() {
 		StageStats st = s.run_stage(Stage::Discovery, discovery_plan.chunks, s.discovery_rate, [&](const NmapResult& r) {
 			for (const HostResult& h : r.hosts) {
 				uint32_t ip;
-				if (h.state == "up" && pc_ip_parse(h.address.c_str(), &ip) == 0) live.push_back(ip);
+				if (h.state == "up" && pc_ip_parse(h.address.c_str(), &ip) == 0) {
+					live.push_back(ip);
+					s.note_host(h.address);
+				}
 			}
 			s.prog.hosts_found = live.size();
 		});
@@ -469,6 +482,10 @@ RoundReport Runner::run_round() {
 				if (pc_ip_parse(h.address.c_str(), &ip) != 0) continue;
 				auto it = records.find(ip);
 				if (it == records.end()) continue; // not a host discovery found: nothing to attach it to
+				std::vector<int> open_ports;
+				for (const PortResult& p : h.ports)
+					if (p.state == "open") open_ports.push_back(p.port);
+				s.note_host(h.address, open_ports);
 				for (const PortResult& p : h.ports) {
 					if (p.state != "open") continue;
 					ServiceRecord sv;

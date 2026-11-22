@@ -428,7 +428,42 @@ static void test_web_stage() {
 	assert(with_web == r.web_responding);
 }
 
+static void test_progress_reporting() {
+	const std::string networks = "10.20.0.0/22";
+	SimNetwork net = SimNetwork::generate(7, networks, 0.05);
+	VirtualClock clock(t0());
+	std::mutex m;
+	std::vector<ScanProgress> seen;
+	RunnerDeps deps;
+	deps.clock = &clock;
+	deps.deadline_watchdog = false;
+	deps.make_backend = [&](std::atomic<bool>&) { return std::make_unique<SimBackend>(net); };
+	deps.on_progress = [&](const ScanProgress& p) {
+		std::lock_guard<std::mutex> l(m);
+		seen.push_back(p);
+	};
+	Runner runner(base_config(networks), deps);
+	const RoundReport r = runner.run_round();
+
+	std::lock_guard<std::mutex> l(m);
+	assert(!seen.empty() && seen.front().stage == "starting" && seen.back().stage == "done");
+	std::vector<std::string> stages;
+	for (const ScanProgress& p : seen)
+		if (stages.empty() || stages.back() != p.stage) stages.push_back(p.stage);
+	assert((stages == std::vector<std::string>{"starting", "discovery", "services", "saving", "done"}));
+	size_t most = 0;
+	bool ports_seen = false;
+	for (const ScanProgress& p : seen) {
+		most = std::max(most, p.recent.size());
+		assert(p.recent.size() <= 8 && p.chunks_done <= p.chunks_total);
+		for (const LiveHost& h : p.recent) ports_seen |= !h.ports.empty();
+	}
+	assert(most == 8 && ports_seen);            // a live view of the latest hosts, with the ports found on them
+	assert(seen.back().hosts_found == r.live_hosts);
+}
+
 int main() {
+	test_progress_reporting();
 	test_config_checks();
 	test_round_without_window();
 	test_targets_scope_and_domains();

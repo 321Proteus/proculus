@@ -170,6 +170,7 @@ static void test_controller() {
 	ctl.wait_idle();
 	const Json done = ctl.status();
 	assert(done["state"] == "idle" && done["last"]["ok"] == true && done["last"]["run_id"] == 1 && done["last"]["hosts"].get<int>() > 0);
+	assert(done["log_total"].get<size_t>() == done["log"].size()); // nothing was dropped from the short log, so the running count matches
 	assert(done["log"].is_array() && !done["log"].empty() && done["last"]["finished"].get<std::string>().size() == 20);
 	assert(store.list().size() == 1 && store.load(1)->hosts.size() == done["last"]["hosts"].get<size_t>());
 	ctl.start(req({"10.20.0.0/24"})); // and another can follow

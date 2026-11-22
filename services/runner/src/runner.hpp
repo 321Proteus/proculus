@@ -100,8 +100,14 @@ struct RunAborted : std::runtime_error {
 
 // Where a round is, for a status display. Reported after every change; the
 // callback runs on a worker thread, under a lock, so it must return quickly.
+struct LiveHost {
+	std::string ip;
+	std::vector<int> ports; // open ports found so far (the services stage fills them in)
+};
+
 struct ScanProgress {
 	std::string stage;         // starting, waiting for the window, discovery, services, web, saving, done
+	std::vector<LiveHost> recent; // the most recent hosts that answered (at most 8), oldest first, for a live view
 	size_t chunks_done = 0;    // in the current stage
 	size_t chunks_total = 0;   // grows when a chunk is split
 	size_t hosts_found = 0;

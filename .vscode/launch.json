@@ -1,25 +1,65 @@
 {
 	"version": "0.2.0",
 	"configurations": [
+		// The two services of the web UI. Start them together with the compound below.
+		// The API prints a setup token the first time (no accounts yet): enter it in the browser.
 		{
-			"name": "Proculus: CBR (debug console)",
+			"name": "Proculus: gateway (API)",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/services/gateway/gateway",
-			"args": [],
+			"args": ["serve", "--store", "${workspaceFolder}/results", "--port", "8082"],
 			"cwd": "${workspaceFolder}",
-			"preLaunchTask": "cmake: build",
-			"console": "internalConsole"
+			"terminal": "integrated"
 		},
 		{
-			"name": "Proculus: CBR (terminal)",
+			"name": "Proculus: ui (web)",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/services/ui/ui",
+			"args": ["--api", "http://127.0.0.1:8082", "--port", "8081"],
+			"cwd": "${workspaceFolder}",
+			"terminal": "integrated"
+		},
+		// The same, with starting scans from the UI allowed against this machine only (for trying the New scan form).
+		{
+			"name": "Proculus: gateway (API, scans on 127.0.0.1)",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/services/gateway/gateway",
-			"args": [],
+			"args": [
+				"serve", "--store", "${workspaceFolder}/results", "--port", "8082",
+				"--enable-scans", "--scan-scope", "127.0.0.1", "--scan-ports", "22,80,443,3000,5000,8000,8080,8443",
+				"--scan-allow-reserved"
+			],
+			"cwd": "${workspaceFolder}",
+			"terminal": "integrated"
+		},
+		// The emulated-network demo (writes runs into results/, which the dashboard then shows).
+		{
+			"name": "Proculus: demo data (emulated network)",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/services/gateway/gateway",
+			"args": ["--store", "${workspaceFolder}/results", "--window", "22:00-06:00"],
 			"cwd": "${workspaceFolder}",
 			"preLaunchTask": "cmake: build",
 			"terminal": "integrated"
+		}
+	],
+	"compounds": [
+		{
+			// Builds once, then starts the API and the UI. Open http://127.0.0.1:8081
+			"name": "Proculus: gateway + ui",
+			"configurations": ["Proculus: gateway (API)", "Proculus: ui (web)"],
+			"preLaunchTask": "cmake: build",
+			"stopAll": true
+		},
+		{
+			"name": "Proculus: gateway + ui (scans on 127.0.0.1)",
+			"configurations": ["Proculus: gateway (API, scans on 127.0.0.1)", "Proculus: ui (web)"],
+			"preLaunchTask": "cmake: build",
+			"stopAll": true
 		}
 	]
 }

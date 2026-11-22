@@ -69,6 +69,12 @@ public:
 		std::lock_guard<std::mutex> l(m_);
 		lines_.clear();
 		partial_.clear();
+		total_ = 0;
+	}
+	// lines written since the last clear(): lets a reader fetch only what is new
+	size_t total() const {
+		std::lock_guard<std::mutex> l(m_);
+		return total_;
 	}
 
 protected:
@@ -77,6 +83,7 @@ protected:
 		std::lock_guard<std::mutex> l(m_);
 		if (ch == '\n') {
 			lines_.push_back(partial_.substr(0, kLogLineLength));
+			total_++;
 			if (lines_.size() > kLogLines) lines_.pop_front();
 			partial_.clear();
 		} else if (partial_.size() < 4 * kLogLineLength) {
@@ -93,6 +100,7 @@ private:
 	mutable std::mutex m_;
 	std::deque<std::string> lines_;
 	std::string partial_;
+	size_t total_ = 0;
 };
 
 Json request_json(const ScanRequest& r) {
@@ -278,9 +286,13 @@ Json ScanController::status() const {
 		j["current"] = {{"started", format_time(i.started)}, {"elapsed_seconds", static_cast<long long>(elapsed)}, {"stage", i.progress.stage},
 			{"chunks_done", i.progress.chunks_done}, {"chunks_total", i.progress.chunks_total}, {"hosts_found", i.progress.hosts_found},
 			{"pauses", i.progress.pauses}, {"request", request_json(i.current)}};
+		Json recent = Json::array();
+		for (const LiveHost& h : i.progress.recent) recent.push_back({{"ip", h.ip}, {"ports", h.ports}});
+		j["current"]["recent_hosts"] = std::move(recent);
 	}
 	j["last"] = i.last;
 	j["log"] = i.log_buffer.tail();
+	j["log_total"] = i.log_buffer.total();
 	return j;
 }
 

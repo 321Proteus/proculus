@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <path d="M 74 20 A 40 40 0 1 0 74 80" fill="none" stroke="#0077e6" stroke-width="6.5" stroke-linecap="butt"/>
+      <polygon points="31,48 21,42 35,44" fill="#0077e6"/>
+      <polygon points="35,44 26,34 39,40" fill="#0077e6"/>
+      <polygon points="39,40 34,27 44,36" fill="#0077e6"/>
+      <polygon points="44,36 43,22 49,33" fill="#0077e6"/>
+      <polygon points="49,33 52,20 54,31" fill="#0077e6"/>
+      <polygon points="30,49 55,30 58,34 33,53" fill="#0077e6"/>
+      <path d="M 54 35 L 59 38 L 60 44 L 58 49 L 64 55 L 60 57 L 60 61 L 58 63 L 59 66 L 54 68 L 51 67 L 51 77 L 32 69 L 36 62 L 34 56 L 36 51"
+            fill="none" stroke="#0077e6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+      <polygon points="53,47 58,49 53,51" fill="#0077e6"/>
+      <text x="65" y="45" font-family="Consolas, monospace" font-size="4.4" font-weight="bold" fill="#0077e6">0101<tspan fill="#60a5fa">0100</tspan><tspan fill="#bfdbfe">10</tspan></text>
+      <text x="65" y="50" font-family="Consolas, monospace" font-size="4.4" font-weight="bold" fill="#0077e6">1010<tspan fill="#60a5fa">0101</tspan><tspan fill="#bfdbfe">01</tspan></text>
+      <text x="65" y="55" font-family="Consolas, monospace" font-size="4.4" font-weight="bold" fill="#0077e6">0100<tspan fill="#60a5fa">1010</tspan><tspan fill="#bfdbfe">00</tspan></text>
+    </svg>
