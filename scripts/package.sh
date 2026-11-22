@@ -235,9 +235,19 @@ package_windows() {
 	[ -f "$bin" ] || die "the build did not produce the program (see the messages above)"
 	strip "$bin" 2>/dev/null || true
 	say "collecting the Cygwin libraries the program needs (they go next to it)"
-	local dlls=()
-	while IFS= read -r dll; do dlls+=("$dll"); done < <(ldd "$bin" | awk '/=>/ {print $3}' | grep -iv '^/cygdrive/\|/windows/\|/system32/' | sort -u)
-	printf '    %s\n' "${dlls[@]##*/}"
+	local dlls=() ldd_out
+	ldd_out="$(ldd "$bin" 2>&1 || true)"
+	echo "$ldd_out" | sed 's/^/    ldd: /'
+	# libraries ldd found (a path under /usr, /bin, /lib; not the Windows ones under /cygdrive)
+	while IFS= read -r dll; do dlls+=("$dll"); done < <(echo "$ldd_out" | awk '$2 == "=>" && $3 ~ /^\// {print $3}' | grep -iv '^/cygdrive/\|/windows/\|/system32/' | sort -u)
+	# libraries ldd could not find: look for them in the usual Cygwin folders before giving up
+	local name found
+	for name in $(echo "$ldd_out" | awk '/not found/ {print $1}'); do
+		found="$(ls /usr/bin/"$name" /bin/"$name" /usr/lib/"$name" /usr/local/bin/"$name" 2>/dev/null | head -1 || true)"
+		[ -n "$found" ] || die "the program needs $name, which is not installed in Cygwin (see the ldd lines above)"
+		dlls+=("$found")
+	done
+	printf '    bundling %s\n' "${dlls[@]##*/}"
 	mkdir -p "$DIST"
 	stage "windows-$arch" "$bin" ".exe" cmd "${dlls[@]}"
 	smoke "$STAGED_DIR" proculus.exe

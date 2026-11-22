@@ -3,7 +3,7 @@
 #   GitHub > Actions > "Build packages" > Run workflow     (or push a tag such as v0.1.0)
 #   When it is green, open the run and download the artifacts at the bottom:
 #     proculus-linux    the command-line package (.tar.gz) and the desktop app (.AppImage)
-#     proculus-macos    the same for macOS on Apple silicon: the package (.tar.gz) and the desktop app (.zip with Proculus.app)
+#     proculus-macos    the same for macOS on Apple silicon (the runner image macos-latest): the package (.tar.gz) and the desktop app (.zip with Proculus.app)
 #     proculus-windows  the command-line package (.zip) and the desktop app (...-portable.exe: double-click it)
 # Nothing has to be installed on the machine that downloads them.
 name: Build packages
@@ -37,7 +37,7 @@ jobs:
             dist/SHA256SUMS
 
   macos:
-    runs-on: macos-14 # Apple silicon
+    runs-on: macos-latest # Apple silicon
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
