@@ -17,6 +17,7 @@
 
 #include "api.hpp"
 #include "scan_control.hpp"
+#include "proculus/web/auth.hpp"
 #include "token_guard.hpp"
 
 namespace httplib {
@@ -35,7 +36,12 @@ struct ServerConfig {
 class WebServer {
 public:
 	// `scans` (optional, must outlive the server) enables the scan routes.
-	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr);
+	// `auth` (optional, must outlive the server) turns on login: every route
+	// except health and login then needs a session whose role has the route's
+	// permission (see the rule table in server.cpp, denied by default); starting
+	// scans needs the scan.run permission instead of the control token, and the
+	// user, role and audit routes exist. Without it the server behaves as before.
+	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr, web::AuthBackend* auth = nullptr);
 	~WebServer();
 
 	// Binds and returns the port; throws std::runtime_error if that fails.
@@ -50,6 +56,9 @@ private:
 	Api api_;
 	ScanController* scans_;
 	TokenGuard guard_;
+	web::AuthBackend* auth_;
+	web::SessionManager sessions_;
+	web::LoginThrottle throttle_;
 	std::unique_ptr<httplib::Server> server_;
 	int port_ = 0;
 };
