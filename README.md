@@ -145,6 +145,18 @@ serve the UI and accept the first-run setup before it is archived (`SKIP_SMOKE=1
 | Linux | `scripts/package.sh linux` | `dist/proculus-<version>-linux-<arch>.tar.gz`; the program plus the shared libraries it needs in `lib/` (found through `$ORIGIN/lib`). Only glibc is not bundled, so it runs on the distribution it was built on and newer ones: build on the oldest one you support. Needs `build-essential cmake ninja-build pkg-config nlohmann-json3-dev libssl-dev libsodium-dev libpq-dev libpcre2-dev libexpat1-dev zlib1g-dev` (Debian/Ubuntu) |
 | Windows | `powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1` | `dist\proculus-<version>-windows-<arch>.zip`; built under Cygwin (the program uses POSIX calls), which the script installs; the few Cygwin DLLs are bundled next to `proculus.exe`. The whole output is also in `dist\windows-build.log` |
 
+**Desktop application (double-click, no browser).** `scripts/package.sh app` (macOS, Linux) and
+`scripts\package-windows.ps1` (Windows, after the Cygwin step) wrap the package above into an
+[Electron](https://www.electronjs.org/) application (`desktop/`): double-clicking it opens Proculus in a
+window of its own. The application starts the bundled `proculus` program on free loopback ports, generates the
+first-run setup token itself and fills it in (nothing to copy from a terminal), keeps its data in the user's
+application-data folder, and stops the program when the window closes. The Proculus menu switches to the
+simulation (emulated network) and opens the data folder. Needs Node.js 18+ on the build machine; the
+result is `Proculus-<version>-mac-<arch>.zip` (holds `Proculus.app`), `...-linux-<arch>.AppImage` or
+`...-windows-<arch>-portable.exe`, all unsigned (macOS: right-click > Open the first time, or
+`xattr -dr com.apple.quarantine Proculus.app`; Windows: SmartScreen > More info > Run anyway).
+Run it from a checkout with `cd desktop && npm install && PROCULUS_BIN=<path to proculus> npm start`.
+
 Real scans need nmap on the machine that runs the package; the simulation needs nothing.
 
 **Simulation.** `gateway serve --simulate --store results-sim` runs the whole system on an

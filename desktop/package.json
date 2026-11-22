@@ -1,0 +1,30 @@
+{
+  "name": "proculus-desktop",
+  "productName": "Proculus",
+  "version": "0.1.0",
+  "description": "Proculus attack surface scanner as a desktop application",
+  "main": "main.js",
+  "author": "Proculus team",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "node build.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "pl.agh.cbi.proculus",
+    "productName": "Proculus",
+    "directories": { "output": "out", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "package.json"],
+    "extraResources": [{ "from": "server", "to": "server" }],
+    "artifactName": "Proculus-${version}-${os}-${arch}.${ext}",
+    "mac": { "target": ["zip"], "identity": null, "category": "public.app-category.developer-tools" },
+    "linux": { "target": ["AppImage"], "category": "Utility" },
+    "win": { "target": ["portable"], "signAndEditExecutable": false },
+    "portable": { "artifactName": "Proculus-${version}-windows-${arch}-portable.exe" }
+  }
+}

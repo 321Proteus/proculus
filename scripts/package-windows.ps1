@@ -5,7 +5,9 @@
 .DESCRIPTION
   Proculus uses POSIX calls (fork, poll, process groups, POSIX sockets), so on Windows it is built under Cygwin, a POSIX
   layer. This script installs Cygwin (to C:\cygwin64, if it is not there yet), builds the program inside it, copies the
-  few Cygwin DLLs it needs next to proculus.exe, smoke-tests the result and zips it. Nothing else on the machine changes.
+  few Cygwin DLLs it needs next to proculus.exe, smoke-tests the result and zips it. Then it builds the DESKTOP APPLICATION
+  (Electron): a single Proculus-<version>-windows-<arch>-portable.exe that opens Proculus in a window of its own when
+  double-clicked, no browser. That step needs Node.js (the script installs it with winget if it can).
 
   Run it from PowerShell in the repository (no administrator rights needed unless Cygwin needs to be installed in C:\):
       powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1
@@ -17,12 +19,14 @@
 .PARAMETER Mirror       Cygwin download mirror
 .PARAMETER SkipInstall  do not run the Cygwin installer (use what is there)
 .PARAMETER SkipSmoke    skip starting the finished program as a test
+.PARAMETER SkipDesktop  only build the zip; do not build the desktop application (Proculus-<version>-windows-<arch>-portable.exe)
 #>
 param(
 	[string]$CygwinRoot = "C:\cygwin64",
 	[string]$Mirror = "https://mirrors.kernel.org/sourceware/cygwin/",
 	[switch]$SkipInstall,
-	[switch]$SkipSmoke
+	[switch]$SkipSmoke,
+	[switch]$SkipDesktop
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,9 +67,26 @@ try {
 
 	$zip = Get-ChildItem -Path $dist -Filter "proculus-*-windows-*.zip" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 	Write-Host ""
-	Write-Host "Done: $($zip.FullName)"
-	Write-Host "Unpack it anywhere and run start-simulation.cmd (no nmap needed) or start.cmd (real scans; needs nmap)."
-	Write-Host "Windows may show a SmartScreen warning for the unsigned program: More info > Run anyway."
+	Write-Host "Command-line package: $($zip.FullName)  (unpack, run start-simulation.cmd or start.cmd)"
+
+	if (-not $SkipDesktop) {
+		Write-Host "==> Building the desktop application (Electron)"
+		$node = Get-Command node -ErrorAction SilentlyContinue
+		if (-not $node -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+			Write-Host "Installing Node.js with winget..."
+			winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements
+			$env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+			$node = Get-Command node -ErrorAction SilentlyContinue
+		}
+		if (-not $node) { throw "Node.js is needed for the desktop application: install it from https://nodejs.org, open a new PowerShell and run this script again (or use -SkipDesktop)" }
+		$staged = Get-ChildItem -Path $dist -Directory -Filter "proculus-*-windows-*" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+		& node (Join-Path $repo "desktop\build.js") $staged.FullName $dist
+		if ($LASTEXITCODE -ne 0) { throw "building the desktop application failed (exit code $LASTEXITCODE)" }
+		$app = Get-ChildItem -Path $dist -Filter "Proculus-*-portable.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+		Write-Host ""
+		Write-Host "Desktop application: $($app.FullName)"
+		Write-Host "Double-click it: Proculus opens in its own window. (Windows may show a SmartScreen warning for the unsigned program: More info > Run anyway.)"
+	}
 }
 catch {
 	Write-Host ""

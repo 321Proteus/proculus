@@ -5,7 +5,10 @@
 #   scripts/package.sh macos      on a Mac:    third-party libraries linked in, only system libraries needed -> dist/proculus-<version>-macos-<arch>.tar.gz
 #   scripts/package.sh linux      on Linux:    system libraries bundled next to the program (lib/)            -> dist/proculus-<version>-linux-<arch>.tar.gz
 #   scripts/package.sh windows    in Cygwin:   (scripts/package-windows.ps1 sets that up and calls this)      -> dist/proculus-<version>-windows-<arch>.zip
-#   scripts/package.sh            the one that fits this machine
+#   scripts/package.sh app        macOS or Linux: the above for this machine, then a DESKTOP APPLICATION around it (Electron): double-click
+#                                 and Proculus opens in a window of its own, no browser -> dist/Proculus-<version>-mac-<arch>.zip (holds Proculus.app) or Proculus-<version>-linux-<arch>.AppImage
+#                                 (needs Node.js 18+; the first time it downloads Electron). Windows: scripts\package-windows.ps1 does it.
+#   scripts/package.sh            the one that fits this machine (the command-line package)
 #
 # Each target builds in a directory of its own (build-package-<target>/), so it never disturbs your normal build/.
 # Each package is smoke-tested before it is archived: the program must start on an emulated network, serve the UI and
@@ -76,9 +79,13 @@ smoke() {
 	local dir="$1" exe="$2" store log pid token code
 	need curl "used by the smoke test (or set SKIP_SMOKE=1)"
 	say "smoke test: starting $exe on an emulated network"
+	if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$SMOKE_UI_PORT/" 2>/dev/null; then
+		die "port $SMOKE_UI_PORT is already in use, so the smoke test cannot run (set SMOKE_UI_PORT and SMOKE_API_PORT to free ports)"
+	fi
 	store="$(mktemp -d)"
 	log="$store/log.txt"
-	( cd "$dir" && "./$exe" serve --simulate --store "$store" --port "$SMOKE_API_PORT" --ui-port "$SMOKE_UI_PORT" >"$log" 2>&1 ) &
+	# exec: $! must be the program itself, or kill would stop only the wrapper and leave the program running
+	( cd "$dir" && exec "./$exe" serve --simulate --store "$store" --port "$SMOKE_API_PORT" --ui-port "$SMOKE_UI_PORT" >"$log" 2>&1 ) &
 	pid=$!
 	for _ in $(seq 1 40); do
 		curl -fs "http://127.0.0.1:$SMOKE_UI_PORT/api/auth" >/dev/null 2>&1 && break
@@ -86,7 +93,7 @@ smoke() {
 	done
 	code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$SMOKE_UI_PORT/" || true)"
 	[ "$code" = 200 ] || { kill "$pid" 2>/dev/null || true; cat "$log" >&2; die "smoke test: the UI answered $code, not 200"; }
-	token="$(grep -A1 'SETUP TOKEN\|setup token' "$log" | tail -1 | tr -d ' \r')"
+	token="$(grep -A1 'SETUP TOKEN\|setup token' "$log" | tail -1 | tr -d ' \r' || true)"
 	[ -n "$token" ] || { kill "$pid" 2>/dev/null || true; cat "$log" >&2; die "smoke test: no setup token in the output"; }
 	curl -fs -X POST "http://127.0.0.1:$SMOKE_UI_PORT/api/setup" -H 'Content-Type: application/json' \
 		-d "{\"setup_token\":\"$token\",\"username\":\"smoke.test\",\"password\":\"a-long-password-1\"}" | grep -q '"token"' \
@@ -227,6 +234,18 @@ package_windows() {
 	say "done: $ARCHIVE"
 }
 
+package_app() {
+	need node "install Node.js 18 or newer (https://nodejs.org)"
+	need npm "install Node.js 18 or newer (https://nodejs.org)"
+	case "$(uname -s)" in
+		Darwin) package_macos ;;
+		Linux) package_linux ;;
+		*) die "on Windows run scripts\\package-windows.ps1" ;;
+	esac
+	say "wrapping it into a desktop application (Electron; the first time this downloads Electron, about 100 MB)"
+	node "$ROOT/desktop/build.js" "$STAGED_DIR" "$DIST"
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 target="${1:-auto}"
 if [ "$target" = auto ]; then
@@ -236,6 +255,7 @@ case "$target" in
 	macos) package_macos ;;
 	linux) package_linux ;;
 	windows) package_windows ;;
+	app) package_app ;;
 	-h|--help|help) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
-	*) die "unknown target '$target' (macos, linux, windows)" ;;
+	*) die "unknown target '$target' (macos, linux, windows, app)" ;;
 esac

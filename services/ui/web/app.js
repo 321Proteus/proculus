@@ -1194,6 +1194,7 @@ async function viewAdmin() {
 function authCard(kind) {
   const setup = kind === 'setup';
   const token = setup ? el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false' }) : null;
+  if (token && window.proculusDesktop && window.proculusDesktop.setupToken) token.value = window.proculusDesktop.setupToken; // the desktop app generated the token itself
   const user = el('input', { type: 'text', autocomplete: 'username' });
   const pass = el('input', { type: 'password', autocomplete: setup ? 'new-password' : 'current-password' });
   const again = setup ? el('input', { type: 'password', autocomplete: 'new-password' }) : null;
