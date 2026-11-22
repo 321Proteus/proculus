@@ -42,7 +42,8 @@ public:
 	// permission (see the rule table in server.cpp, denied by default); starting
 	// scans needs the scan.run permission instead of the control token, and the
 	// user, role and audit routes exist. Without it the server behaves as before.
-	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr, web::AuthBackend* auth = nullptr);
+	// `edits` (optional, must outlive the server) enables user edits of scanned data (data.edit).
+	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr, web::AuthBackend* auth = nullptr, EditStore* edits = nullptr);
 	~WebServer();
 
 	// Binds and returns the port; throws std::runtime_error if that fails.

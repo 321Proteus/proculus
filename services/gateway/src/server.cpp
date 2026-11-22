@@ -48,6 +48,8 @@ void api_route(httplib::Response& res, Fn&& fn) {
 		send_json(res, e.status, { { "error", e.what() } });
 	} catch (const web::AuthError& e) {
 		send_json(res, e.status, { { "error", e.what() } });
+	} catch (const EditError& e) {
+		send_json(res, e.status, { { "error", e.what() } });
 	} catch (const FormatError& e) { // stored data that cannot be read: say so, it is not an internal fault of the request
 		std::cerr << "gateway: stored data cannot be read: " << e.what() << "\n";
 		send_json(res, 500, { { "error", "the stored data cannot be read (wrong PROCULUS_KEY, or damaged data); see the gateway log" } });
@@ -66,7 +68,8 @@ struct Rule {
 const Rule kRules[] = {
 	{"GET", "/api/health", ""}, {"GET", "/api/auth", ""}, {"POST", "/api/login", ""}, {"POST", "/api/setup", ""}, {"POST", "/api/logout", "*"}, {"GET", "/api/me", "*"},
 	{"GET", "/api/runs", "data.read"}, {"GET", "/api/dashboard", "data.read"}, {"GET", "/api/services", "data.read"}, {"GET", "/api/diff", "data.read"},
-	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/scan", "data.read"},
+	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/scan", "data.read"}, {"GET", "/api/edits", "data.read"},
+	{"POST", "/api/edits", "data.edit"}, {"POST", "/api/edits/clear", "data.edit"},
 	{"POST", "/api/scan", "scan.run"}, {"POST", "/api/scan/plan", "scan.run"}, {"POST", "/api/scan/stop", "scan.run"},
 	{"GET", "/api/users", "users.manage"}, {"POST", "/api/users", "users.manage"}, {"POST", "/api/users/update", "users.manage"},
 	{"GET", "/api/roles", "users.manage"}, {"POST", "/api/roles", "users.manage"}, {"POST", "/api/roles/delete", "users.manage"}, {"GET", "/api/audit", "users.manage"},
@@ -112,8 +115,8 @@ std::string str_field(const Json& b, const char* key, size_t max = 200) {
 
 } // namespace
 
-WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth)
-	: store_(store), config_(std::move(config)), api_(store_), scans_(scans), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
+WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth, EditStore* edits)
+	: store_(store), config_(std::move(config)), api_(store_, edits), scans_(scans), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
 
 	std::vector<std::string> allowed = web::default_allowed_hosts();
@@ -175,6 +178,8 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			q.min_score = static_cast<int>(number_param(req, "min_score", 0, 100));
 			q.limit = number_param(req, "limit", 50, 500);
 			q.offset = number_param(req, "offset", 0, 100000000);
+			q.hide_ignored = text_param(req, "hide", "") == "1";
+			q.only_edited = text_param(req, "edited", "") == "1";
 			return api_.services(text_param(req, "run", "latest", 20), q);
 		});
 	});
@@ -221,6 +226,62 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 		});
 	});
 	svr.Get("/api/hosts", [this](const httplib::Request&, httplib::Response& res) { api_route(res, [&] { return api_.hosts(); }); });
+
+	// ---- user edits: read like the rest; changing needs data.edit (with login) or the control token (without)
+	svr.Get("/api/edits", [this](const httplib::Request&, httplib::Response& res) { api_route(res, [&] { return api_.edits(); }); });
+	auto edit_post = [this, current_user](const httplib::Request& req, httplib::Response& res, const std::function<Json(const Json&, const std::string&)>& action) {
+		if (!api_.has_edits()) return send_json(res, 404, {{"error", "editing is not available on this server"}});
+		if (!auth_) { // no login: the control token
+			switch (guard_.check(req.get_header_value("X-Proculus-Token"))) {
+			case TokenGuard::Result::Ok: break;
+			case TokenGuard::Result::Disabled: return send_json(res, 403, {{"error", "no control token is configured"}});
+			case TokenGuard::Result::Locked: return send_json(res, 429, {{"error", "too many wrong tokens; try again in a minute"}});
+			case TokenGuard::Result::Denied: return send_json(res, 401, {{"error", "wrong or missing control token"}});
+			}
+		}
+		const auto body = json_body(req, res);
+		if (!body) return;
+		const auto user = auth_ ? current_user(req) : std::nullopt;
+		api_route(res, [&] { return action(*body, user ? user->username : std::string("local")); });
+	};
+	auto key_of = [](const Json& b) {
+		EditKey k;
+		k.ip = str_field(b, "ip", 45);
+		if (b.contains("port")) {
+			if (!b["port"].is_number_integer() || b["port"].get<long long>() < 0 || b["port"].get<long long>() > 65535) throw ApiError(400, "\"port\" must be 0..65535");
+			k.port = static_cast<uint16_t>(b["port"].get<int>());
+		}
+		if (k.port != 0) k.protocol = b.contains("protocol") ? str_field(b, "protocol", 3) : std::string("tcp");
+		return k;
+	};
+	svr.Post("/api/edits", [this, edit_post, key_of, current_user](const httplib::Request& req, httplib::Response& res) {
+		edit_post(req, res, [&](const Json& body, const std::string& user) -> Json {
+			const EditKey key = key_of(body);
+			if (!body.contains("changes")) throw ApiError(400, "\"changes\" is missing");
+			const Json result = api_.apply_edit(key, body["changes"], user);
+			if (auth_) { // who changed what (values of notes are not copied into the log)
+				std::string detail;
+				for (auto it = body["changes"].begin(); it != body["changes"].end(); ++it) {
+					detail += (detail.empty() ? "" : ", ") + it.key();
+					if (it.key() != "note" && it.key() != "tags" && !it.value().is_null()) detail += "=" + clip(it.value().dump(), 40);
+				}
+				const auto actor = current_user(req);
+				auth_->record(actor ? &*actor : nullptr, result["removed"].get<bool>() ? "edit removed" : "edit", (key.is_host() ? "host:" : "service:") + key.text(), detail, req.remote_addr);
+			}
+			return result;
+		});
+	});
+	svr.Post("/api/edits/clear", [this, edit_post, key_of, current_user](const httplib::Request& req, httplib::Response& res) {
+		edit_post(req, res, [&](const Json& body, const std::string&) -> Json {
+			const EditKey key = key_of(body);
+			const Json result = api_.clear_edit(key);
+			if (auth_) {
+				const auto actor = current_user(req);
+				auth_->record(actor ? &*actor : nullptr, "edit cleared", (key.is_host() ? "host:" : "service:") + key.text(), "", req.remote_addr);
+			}
+			return result;
+		});
+	});
 
 	// ---- login, users, roles, audit (only with an auth backend)
 	svr.Get("/api/auth", [this](const httplib::Request&, httplib::Response& res) {

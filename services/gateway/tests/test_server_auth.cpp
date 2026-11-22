@@ -8,6 +8,7 @@
 #include <mutex>
 #include <thread>
 
+#include "proculus/edits/edits.hpp"
 #include "server.hpp"
 #include "sim_network.hpp"
 
@@ -142,7 +143,8 @@ int main() {
 	ServerConfig cfg;
 	cfg.port = 0;
 	cfg.control_token = "unused-when-login-is-on-0123456789"; // login replaces the control token
-	WebServer server(store, cfg, &scans, &auth);
+	auto edit_store = make_file_edit_store(dir / "edits");
+	WebServer server(store, cfg, &scans, &auth, edit_store.get());
 	const int port = server.bind();
 	std::thread t([&] { server.run(); });
 	httplib::Client c("127.0.0.1", port);
@@ -227,6 +229,39 @@ int main() {
 	bool scan_by_mia = false;
 	for (const Json& e : log) scan_by_mia |= e["action"] == "scan started" && e["user"] == "mia";
 	assert(scan_by_mia);
+
+	// ---- edits: everybody who may read can see them; changing needs data.edit
+	const std::string edit_body = Json{{"ip", "10.20.0.2"}, {"changes", {{"note", "checked on Monday"}, {"status", "confirmed"}}}}.dump();
+	assert(c.Get("/api/edits")->status == 401);
+	assert(c.Post("/api/edits", edit_body, "application/json")->status == 401);
+	const std::string reader = session("ann", "ann-password-1"); // (an admin; a viewer is made below)
+	assert(c.Post("/api/users", hdr(reader), Json{{"username", "read.only"}, {"password", "read only password"}, {"role", "viewer"}}.dump(), "application/json")->status == 200);
+	const std::string ro = session("read.only", "read only password");
+	assert(c.Get("/api/edits", hdr(ro))->status == 200);
+	assert(c.Post("/api/edits", hdr(ro), edit_body, "application/json")->status == 403);            // a viewer cannot edit
+	assert(c.Post("/api/edits/clear", hdr(ro), Json{{"ip", "10.20.0.2"}}.dump(), "application/json")->status == 403);
+	const std::string editor = session("mia", "mia-password-1"); // a manager has data.edit
+	auto edited = c.Post("/api/edits", hdr(editor), edit_body, "application/json");
+	assert(edited && edited->status == 200 && Json::parse(edited->body)["edit"]["edited_by"] == "mia");
+	assert(c.Post("/api/edits", hdr(editor), Json{{"ip", "10.20.0.2"}, {"changes", {{"status", "nonsense"}}}}.dump(), "application/json")->status == 400);
+	assert(c.Post("/api/edits", hdr(editor), Json{{"ip", "10.20.0.2"}}.dump(), "application/json")->status == 400);
+	assert(c.Post("/api/edits", hdr(editor), Json{{"ip", "not-an-ip"}, {"changes", {{"note", "x"}}}}.dump(), "application/json")->status == 400);
+	assert(c.Post("/api/edits", hdr(editor), Json{{"ip", "10.20.0.2"}, {"port", 70000}, {"changes", {{"note", "x"}}}}.dump(), "application/json")->status == 400);
+	assert(c.Post("/api/edits", hdr(editor), edit_body, "text/plain")->status == 415);
+	const Json listed = Json::parse(c.Get("/api/edits", hdr(ro))->body);
+	assert(listed.size() == 1 && listed[0]["ip"] == "10.20.0.2" && listed[0]["note"] == "checked on Monday");
+	// the edit shows in what the services page returns
+	const Json svc_rows = Json::parse(c.Get("/api/services?q=checked", hdr(ro))->body);
+	assert(svc_rows["total"] == 1 && svc_rows["services"][0]["status"] == "confirmed");
+	assert(c.Post("/api/edits/clear", hdr(editor), Json{{"ip", "10.20.0.2"}}.dump(), "application/json")->status == 200 && Json::parse(c.Get("/api/edits", hdr(ro))->body).empty());
+	// the audit log names who changed what, without copying notes
+	const Json log2 = Json::parse(c.Get("/api/audit", hdr(admin))->body);
+	bool edit_logged = false, cleared_logged = false;
+	for (const Json& e : log2) {
+		edit_logged |= e["action"] == "edit" && e["user"] == "mia" && e["entity"] == "host:10.20.0.2" && e["detail"].get<std::string>().find("status=\"confirmed\"") != std::string::npos;
+		cleared_logged |= e["action"] == "edit cleared" && e["user"] == "mia";
+	}
+	assert(edit_logged && cleared_logged && log2.dump().find("checked on Monday") == std::string::npos);
 
 	// ---- logout ends the session
 	assert(c.Post("/api/logout", hdr(manager), "{}", "application/json")->status == 200);

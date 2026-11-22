@@ -23,6 +23,12 @@ const TEXTS = {
     setupTokenHint: 'Wypisany w konsoli bramy (gateway serve) przy starcie. Chroni przed tym, by ktoś inny założył konto pierwszy.', confirmPassword: 'Powtórz hasło',
     passwordsDiffer: 'Hasła się różnią.', createAdmin: 'Utwórz administratora',
     openMode: 'Logowanie jest wyłączone na tym serwerze (--no-auth): każdy, kto ma dostęp do tej strony, widzi wszystkie dane.',
+    edit: 'Edytuj', edits: 'Edycje', editTitle: 'Edycja', editHost: 'Host', editService: 'Usługa', scanSays: 'Skan wykrył', hostnameLabel: 'Nazwa hosta', environment: 'Środowisko',
+    statusLabel: 'Status', priorityLabel: 'Priorytet (0–100)', priorityHint: 'Puste = wyliczony automatycznie', tagsLabel: 'Tagi', tagsHint: 'oddzielone przecinkami', noteLabel: 'Notatka',
+    saveHost: 'Zapisz hosta', saveService: 'Zapisz usługę', removeEdits: 'Usuń edycje', close: 'Zamknij', hideIgnored: 'Ukryj ignorowane', onlyEdited: 'Tylko edytowane',
+    env_prod: 'produkcja', env_staging: 'staging', env_test: 'test', env_dev: 'dev', st_ignored: 'ignorowane', st_false_positive: 'fałszywy alarm', st_confirmed: 'potwierdzone', st_none: '—',
+    editsHelp: 'Edycje są zapisywane osobno od skanów: kolejne skany ich nie nadpiszą. Pozostają też wtedy, gdy host chwilowo nie odpowiada.', noEdits: 'Nie ma jeszcze żadnych edycji.',
+    editedBy: 'Edytował', editedAt: 'Kiedy', scanValue: 'skan', savedEdit: 'Zapisano edycję.', target: 'Obiekt',
     save: 'Zapisz', login: 'Zaloguj się', username: 'Użytkownik', password: 'Hasło', signIn: 'Zaloguj', signOut: 'Wyloguj', noUsers: 'Nie ma jeszcze żadnych kont.',
     noUsersHint: 'Utwórz pierwszego administratora poleceniem: gateway user add TWOJA.NAZWA --role admin', forbidden: 'Twoja rola nie ma dostępu do tej strony.',
     adminTitle: 'Administracja', users: 'Użytkownicy', roles: 'Role', audit: 'Dziennik zdarzeń', role: 'Rola', status: 'Status', lastLogin: 'Ostatnie logowanie', actions: 'Akcje',
@@ -66,6 +72,12 @@ const TEXTS = {
     setupTokenHint: 'Printed on the gateway console (gateway serve) at startup. It stops anyone else from creating the first account before you.', confirmPassword: 'Repeat password',
     passwordsDiffer: 'The passwords differ.', createAdmin: 'Create administrator',
     openMode: 'Login is turned off on this server (--no-auth): anyone who can reach this page can see all the data.',
+    edit: 'Edit', edits: 'Edits', editTitle: 'Edit', editHost: 'Host', editService: 'Service', scanSays: 'The scan found', hostnameLabel: 'Host name', environment: 'Environment',
+    statusLabel: 'Status', priorityLabel: 'Priority (0-100)', priorityHint: 'Empty = computed automatically', tagsLabel: 'Tags', tagsHint: 'separated by commas', noteLabel: 'Note',
+    saveHost: 'Save host', saveService: 'Save service', removeEdits: 'Remove edits', close: 'Close', hideIgnored: 'Hide ignored', onlyEdited: 'Only edited',
+    env_prod: 'production', env_staging: 'staging', env_test: 'test', env_dev: 'dev', st_ignored: 'ignored', st_false_positive: 'false positive', st_confirmed: 'confirmed', st_none: '—',
+    editsHelp: 'Edits are kept apart from the scans, so later scans never overwrite them. They also stay when a host does not answer for a while.', noEdits: 'There are no edits yet.',
+    editedBy: 'Edited by', editedAt: 'When', scanValue: 'scan', savedEdit: 'Edit saved.', target: 'Object',
     save: 'Save', login: 'Sign in', username: 'User name', password: 'Password', signIn: 'Sign in', signOut: 'Sign out', noUsers: 'There are no accounts yet.',
     noUsersHint: 'Create the first administrator with: gateway user add YOUR.NAME --role admin', forbidden: 'Your role has no access to this page.',
     adminTitle: 'Administration', users: 'Users', roles: 'Roles', audit: 'Audit log', role: 'Role', status: 'Status', lastLogin: 'Last login', actions: 'Actions',
@@ -173,18 +185,79 @@ function bars(rows, nameOf, level) {
 }
 
 function serviceRow(f, onclick) {
+  const tags = [...((f.edit && f.edit.host && f.edit.host.tags) || []), ...((f.edit && f.edit.service && f.edit.service.tags) || [])];
+  const env = f.edit && f.edit.host && f.edit.host.environment;
+  const notes = [f.edit && f.edit.host && f.edit.host.note, f.edit && f.edit.service && f.edit.service.note].filter(Boolean).join('\n');
   return el('tr', onclick ? { class: 'click', onclick } : {},
     el('td', {}, badge(f.score, f.level)),
     el('td', { class: 'mono' }, f.ip + ':' + f.port + '/' + f.protocol),
-    el('td', {}, f.hostname),
+    el('td', {}, f.hostname, f.scan_hostname !== undefined ? el('div', { class: 'scanval' }, t('scanValue') + ': ' + (f.scan_hostname || '—')) : null),
     el('td', {}, f.service),
     el('td', {}, f.title),
-    el('td', {}, f.detections.map((d) => el('span', { class: 'chip' }, d))),
-    el('td', {}, f.reasons.length ? el('ul', { class: 'reasons' }, f.reasons.map((r) => el('li', {}, r))) : ''));
+    el('td', {}, f.status ? el('span', { class: 'chip st-' + f.status }, t('st_' + f.status)) : null, env ? el('span', { class: 'chip' }, t('env_' + env)) : null,
+      tags.map((x) => el('span', { class: 'chip' }, '#' + x)), f.detections.map((d) => el('span', { class: 'chip' }, d)), notes ? el('div', { class: 'note', title: notes }, '✎ ' + notes) : null),
+    el('td', {}, f.reasons.length ? el('ul', { class: 'reasons' }, f.reasons.map((r) => el('li', {}, r))) : ''),
+    can('data.edit') ? el('td', {}, el('button', { onclick: (e) => { e.stopPropagation(); openEdit(f); } }, t('edit'))) : null);
 }
 
 function servicesHead() {
-  return el('thead', {}, el('tr', {}, ['score', 'address', 'hostname', 'service', 'title', 'found', 'why'].map((k) => el('th', {}, t(k)))));
+  return el('thead', {}, el('tr', {}, ['score', 'address', 'hostname', 'service', 'title', 'found', 'why'].map((k) => el('th', {}, t(k))), can('data.edit') ? el('th', {}, '') : null));
+}
+
+// ---- edit dialog: a host, or one of its services; edits are kept apart from the scans
+function openEdit(f) {
+  const old = document.getElementById('modal');
+  if (old) old.remove();
+  const hostEdit = (f.edit && f.edit.host) || {}, svcEdit = (f.edit && f.edit.service) || {};
+  const message = el('div', {});
+  const token = el('input', { type: 'password', autocomplete: 'off', value: controlToken, placeholder: '…' });
+  const close = () => { const m = document.getElementById('modal'); if (m) m.remove(); };
+  const sel = (options, value, labelOf) => el('select', {}, el('option', { value: '' }, t('st_none')), options.map((o) => el('option', { value: o, selected: o === value }, labelOf(o))));
+  const textRow = (value) => el('input', { type: 'text', value: value || '' });
+
+  function section(title, existing, isHost) {
+    const hostname = isHost ? textRow(existing.hostname) : null;
+    const environment = isHost ? sel(['prod', 'staging', 'test', 'dev'], existing.environment, (o) => t('env_' + o)) : null;
+    const status = sel(['ignored', 'false_positive', 'confirmed'], existing.status, (o) => t('st_' + o));
+    const priority = el('input', { type: 'number', min: 0, max: 100, value: existing.priority !== undefined ? existing.priority : '', placeholder: '' });
+    const tags = textRow((existing.tags || []).join(', '));
+    const note = el('textarea', { rows: 3 }, existing.note || '');
+    note.value = existing.note || '';
+    const key = isHost ? { ip: f.ip } : { ip: f.ip, port: f.port, protocol: f.protocol };
+    const payload = () => {
+      const changes = { status: status.value || null, priority: priority.value === '' ? null : Number(priority.value),
+        tags: tags.value.split(',').map((x) => x.trim()).filter(Boolean), note: note.value || null };
+      if (isHost) { changes.hostname = hostname.value.trim() || null; changes.environment = environment.value || null; }
+      return Object.assign({}, key, { changes });
+    };
+    const save = async () => {
+      controlToken = token.value.trim();
+      try { sessionStorage.setItem('proculus.token', controlToken); } catch (e) { /* ignore */ }
+      message.replaceChildren();
+      try { await post('/api/edits', payload()); close(); render(); } catch (e) { message.replaceChildren(el('div', { class: 'err' }, e.message)); }
+    };
+    const remove = async () => {
+      controlToken = token.value.trim();
+      message.replaceChildren();
+      try { await post('/api/edits/clear', key); close(); render(); } catch (e) { message.replaceChildren(el('div', { class: 'err' }, e.message)); }
+    };
+    return el('fieldset', { class: 'editbox' }, el('legend', {}, title),
+      isHost ? field(t('hostnameLabel'), t('scanValue') + ': ' + (f.scan_hostname !== undefined ? (f.scan_hostname || '—') : (f.hostname || '—')), hostname) : null,
+      isHost ? field(t('environment'), '', environment) : null,
+      el('div', { class: 'row3' }, field(t('statusLabel'), '', status), field(t('priorityLabel'), t('priorityHint'), priority), field(t('tagsLabel'), t('tagsHint'), tags)),
+      field(t('noteLabel'), '', note),
+      el('div', { class: 'toolbar' }, el('button', { class: 'primary', onclick: save }, isHost ? t('saveHost') : t('saveService')),
+        Object.keys(existing).length ? el('button', { class: 'danger', onclick: remove }, t('removeEdits')) : null));
+  }
+
+  const dialog = el('div', { class: 'modal-box', role: 'dialog' },
+    el('h1', {}, t('editTitle') + ': ' + f.ip + ':' + f.port + '/' + f.protocol),
+    el('p', { class: 'sub' }, t('scanSays') + ': ' + (f.service || '—') + (f.title ? ' · ' + f.title : '')),
+    section(t('editHost') + ' ' + f.ip, hostEdit, true), section(t('editService') + ' ' + f.port + '/' + f.protocol, svcEdit, false),
+    auth && auth.enabled ? null : field(t('token'), t('tokenHint'), token), message,
+    el('div', { class: 'toolbar' }, el('button', { onclick: close }, t('close'))));
+  const overlay = el('div', { id: 'modal', class: 'modal', onclick: (e) => { if (e.target.id === 'modal') close(); } }, dialog);
+  document.body.append(overlay);
 }
 
 // ---------------------------------------------------------------- views
@@ -238,14 +311,14 @@ function hostStates(h) {
 async function viewServices(params) {
   const runs = await api('/api/runs');
   if (!runs.length) return el('div', { class: 'card empty' }, el('h2', {}, t('noRuns')), el('p', {}, t('noRunsHint')));
-  const state = { run: params.run || 'latest', q: params.q || '', min: params.min || '0', offset: Number(params.offset || 0) };
+  const state = { run: params.run || 'latest', q: params.q || '', min: params.min || '0', offset: Number(params.offset || 0), hide: params.hide === '1', edited: params.edited === '1' };
   const out = el('div', {});
   const table = el('div', {});
 
   async function load() {
     table.replaceChildren(el('p', { class: 'sub' }, t('loading')));
     try {
-      const r = await api('/api/services?' + qs({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, limit: 50, offset: state.offset }));
+      const r = await api('/api/services?' + qs({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, limit: 50, offset: state.offset, hide: state.hide ? '1' : '', edited: state.edited ? '1' : '' }));
       const from = r.total ? r.offset + 1 : 0, to = Math.min(r.offset + r.limit, r.total);
       table.replaceChildren(
         r.services.length ? el('table', {}, servicesHead(), el('tbody', {}, r.services.map((f) => serviceRow(f)))) : el('div', { class: 'empty' }, t('none')),
@@ -264,7 +337,10 @@ async function viewServices(params) {
   const minSel = el('select', { onchange: (e) => { state.min = e.target.value; state.offset = 0; load(); } },
     [['0', t('any')], ['15', '≥ 15 (' + t('low') + ')'], ['40', '≥ 40 (' + t('medium') + ')'], ['70', '≥ 70 (' + t('high') + ')']].map(([v, l]) => el('option', { value: v, selected: v === state.min }, t('minScore') + ': ' + l)));
 
-  out.append(el('h1', {}, t('services')), el('div', { class: 'toolbar' }, search, minSel, runSel), el('div', { class: 'card' }, table));
+  const hideBox = el('input', { type: 'checkbox', checked: state.hide, onchange: (e) => { state.hide = e.target.checked; state.offset = 0; load(); } });
+  const editedBox = el('input', { type: 'checkbox', checked: state.edited, onchange: (e) => { state.edited = e.target.checked; state.offset = 0; load(); } });
+  out.append(el('h1', {}, t('services')), el('div', { class: 'toolbar' }, search, minSel, runSel,
+    el('label', { class: 'check' }, hideBox, ' ' + t('hideIgnored')), el('label', { class: 'check' }, editedBox, ' ' + t('onlyEdited'))), el('div', { class: 'card' }, table));
   load();
   return out;
 }
@@ -423,6 +499,21 @@ function pollScan() {
   tick();
 }
 
+// ---- all edits (also those of hosts that are not in the latest run)
+async function viewEdits() {
+  const edits = await api('/api/edits');
+  const rows = edits.map((e) => {
+    const target = e.port ? e.ip + ':' + e.port + '/' + e.protocol : e.ip;
+    return el('tr', {}, el('td', { class: 'mono' }, target), el('td', {}, e.hostname || ''), el('td', {}, e.environment ? t('env_' + e.environment) : ''),
+      el('td', {}, e.status ? el('span', { class: 'chip st-' + e.status }, t('st_' + e.status)) : ''), el('td', {}, e.priority !== undefined ? String(e.priority) : ''),
+      el('td', {}, (e.tags || []).map((x) => el('span', { class: 'chip' }, '#' + x))), el('td', { class: 'note' }, e.note || ''), el('td', {}, e.edited_by + ' · ' + when(e.edited_at)),
+      can('data.edit') ? el('td', {}, el('button', { class: 'danger', onclick: async () => { try { await post('/api/edits/clear', e.port ? { ip: e.ip, port: e.port, protocol: e.protocol } : { ip: e.ip }); render(); } catch (err) { alert(err.message); } } }, t('removeEdits'))) : null);
+  });
+  return el('div', {}, el('h1', {}, t('edits')), el('p', { class: 'sub' }, t('editsHelp')),
+    edits.length ? el('div', { class: 'card' }, el('table', {}, el('thead', {}, el('tr', {}, ['target', 'hostnameLabel', 'environment', 'statusLabel', 'priorityLabel', 'tagsLabel', 'noteLabel', 'editedBy', can('data.edit') ? '' : null].filter((k) => k !== null).map((k) => el('th', {}, k ? t(k) : '')))), el('tbody', {}, rows)))
+      : el('div', { class: 'card empty' }, t('noEdits')));
+}
+
 // ---- sign in
 function viewLogin() {
   if (auth && auth.setupRequired) return viewSetup();
@@ -516,8 +607,8 @@ async function viewAdmin() {
 }
 
 // ---------------------------------------------------------------- shell
-const ROUTES = { dashboard: viewDashboard, services: viewServices, runs: viewRuns, changes: viewChanges, scan: viewScan, admin: viewAdmin };
-const ROUTE_PERMISSION = { dashboard: 'data.read', services: 'data.read', runs: 'data.read', changes: 'data.read', scan: 'scan.run', admin: 'users.manage' };
+const ROUTES = { dashboard: viewDashboard, services: viewServices, runs: viewRuns, changes: viewChanges, scan: viewScan, edits: viewEdits, admin: viewAdmin };
+const ROUTE_PERMISSION = { dashboard: 'data.read', services: 'data.read', runs: 'data.read', changes: 'data.read', scan: 'scan.run', edits: 'data.read', admin: 'users.manage' };
 
 function parseHash() {
   const raw = location.hash.replace(/^#\/?/, '');

@@ -190,6 +190,19 @@ account changes are written to the audit log (never passwords). The command line
 can change the same accounts at the same time. Keep the accounts directory private: it holds
 password hashes. Nothing encrypts the connection itself: put the UI behind a TLS proxy for real use.
 
+## Editing what the scans found
+
+Hosts and services can be edited in the UI ("Edytuj" on any row, or the Edits page): a host name,
+environment (prod, staging, test, dev), a status (ignored, false positive, confirmed), a priority
+(0-100, replacing the computed one), tags and a note, for a host or for one of its services. Edits
+are kept **apart from the scans**, keyed by address (and port and protocol for a service), so no scan
+ever touches them: they survive every later scan and stay when a host stops answering for a while.
+They are applied when the data is read: the UI shows your value and, under it, what the scan found.
+Ignored and false-positive services are left out of the dashboard counts and top findings (and can be
+hidden in the list). Changing needs the `data.edit` permission (or the control token when login is off),
+and every change goes to the audit log (field names and values, never the text of notes). Edits are
+files in `DIR/edits/` (mode 0600) or, with `--db`, the `entity_edits` table with the values sealed.
+
 ## Following changes over time
 
 `differ` compares saved runs and follows hosts and services across all of them:
@@ -279,6 +292,7 @@ stored as `name=<redacted>; attributes`.
 - `libs/signatures` – detection signatures: loader, matching engine, 125 built-ins
 - `services/signatures` – list, lint, test and try out signatures
 - `libs/insight` – priority score for services and the dashboard summary
+- `libs/edits` – user edits of scanned data (files; the Postgres version is in `libs/pgstore`)
 - `libs/web` – Host-header guard, sessions and login throttle shared by the web-facing services
 - `libs/auth` – users, roles and the audit log in Postgres
 - `services/gateway` – the demo above, and `serve`: the read-only JSON API

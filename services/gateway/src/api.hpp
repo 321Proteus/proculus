@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "proculus/edits/edits.hpp"
 #include "proculus/results/results.hpp"
 
 namespace proculus {
@@ -22,11 +23,16 @@ struct ServicesQuery {
 	int min_score = 0;
 	size_t limit = 50;    // 1..500
 	size_t offset = 0;
+	bool hide_ignored = false; // leave out services whose (edited) status is ignored or false_positive
+	bool only_edited = false;  // only services or hosts somebody has edited
 };
 
 class Api {
 public:
-	explicit Api(const ResultStore& store) : store_(store) {}
+	// `edits` (optional, must outlive the Api) are applied on top of what the runs say: an edited host
+	// name, priority and status show instead of the scanned ones (the scan values stay in the answer
+	// too), and services marked ignored or false positive stay out of the dashboard.
+	explicit Api(const ResultStore& store, EditStore* edits = nullptr) : store_(store), edits_(edits) {}
 
 	Json runs() const;
 	// `which` is a run number or "latest".
@@ -36,9 +42,16 @@ public:
 	// Host states over time (replays all runs): counts and the hosts that need attention.
 	Json hosts() const;
 
+	// ---- user edits (404 if the server has no edit store; EditError for bad edits)
+	bool has_edits() const { return edits_ != nullptr; }
+	Json edits() const;
+	Json apply_edit(const EditKey& key, const Json& changes, const std::string& user) const;
+	Json clear_edit(const EditKey& key) const;
+
 private:
 	RunRecord load(const std::string& which) const;
 	const ResultStore& store_;
+	EditStore* edits_;
 };
 
 } // namespace proculus

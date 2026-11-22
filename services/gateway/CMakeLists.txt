@@ -1,7 +1,7 @@
 add_library(gateway_core STATIC src/demo.cpp src/api.cpp src/server.cpp src/scan_control.cpp src/token_guard.cpp)
 target_include_directories(gateway_core PUBLIC src)
 target_include_directories(gateway_core SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/third_party/httplib)
-target_link_libraries(gateway_core PUBLIC planner_core scanner_core scheduler_core proculus_timing proculus_results proculus_insight proculus_web differ_core runner_core)
+target_link_libraries(gateway_core PUBLIC planner_core scanner_core scheduler_core proculus_timing proculus_results proculus_insight proculus_web proculus_edits differ_core runner_core)
 find_package(Threads REQUIRED)
 target_link_libraries(gateway_core PUBLIC Threads::Threads)
 

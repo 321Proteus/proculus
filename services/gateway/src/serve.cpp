@@ -9,6 +9,7 @@
 
 #include "proculus/web/guard.hpp"
 #ifdef PROCULUS_HAVE_PGSTORE
+#include "proculus/pgstore/pgedits.hpp"
 #include "proculus/pgstore/pgstore.hpp"
 #endif
 #ifdef PROCULUS_HAVE_AUTH
@@ -160,17 +161,25 @@ int serve_command(int argc, char** argv) {
 		} else {
 			std::cerr << "proculus: WARNING: login is OFF (--no-auth): anyone who can reach this server can read everything\n";
 		}
-		if (policy.enabled && !use_auth) { // without login, starting scans needs the control token
+		std::unique_ptr<EditStore> edit_store; // user edits: next to the runs, or in the database
+		if (!db_url.empty()) {
+#ifdef PROCULUS_HAVE_PGSTORE
+			edit_store = make_pg_edit_store(db_url, db::FieldCipher(db::KeyRing::from_env()));
+#endif
+		} else {
+			edit_store = make_file_edit_store(std::filesystem::path(store_dir) / "edits");
+		}
+		if (!use_auth) { // without login, changing anything (starting scans, editing) needs the control token
 			if (const char* env = std::getenv("PROCULUS_CONTROL_TOKEN"); env && *env) {
 				cfg.control_token = env;
 				if (cfg.control_token.size() < 16) throw std::invalid_argument("PROCULUS_CONTROL_TOKEN is too short (use at least 16 characters)");
 			} else {
 				cfg.control_token = TokenGuard::generate();
-				std::cerr << "proculus: control token for starting scans: " << cfg.control_token << "\n";
+				std::cerr << "proculus: control token for changes (scans, edits): " << cfg.control_token << "\n";
 			}
 		}
 		ScanController scans(policy, &store); // validates the policy
-		WebServer server(store, cfg, &scans, auth_backend.get());
+		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get());
 		const int port = server.bind();
 		g_server = &server;
 		std::signal(SIGINT, on_signal);

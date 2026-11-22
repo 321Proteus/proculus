@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <thread>
 
+#include "proculus/edits/edits.hpp"
 #include "server.hpp"
 #include "sim_network.hpp"
 
@@ -87,6 +88,10 @@ int main() {
 	assert(c.Get("/api/runs", httplib::Headers{{"Host", "proculus.lan:8080"}})->status == 200); // --allow-host
 	assert(c.Get("/api/runs", httplib::Headers{{"Host", "127.0.0.1.attacker.example"}})->status == 403);
 
+	// ---- edits are not available on a server without an edit store
+	assert(c.Get("/api/edits")->status == 404);
+	assert(c.Post("/api/edits", Json{{"ip", "10.0.0.1"}, {"changes", {{"note", "x"}}}}.dump(), "application/json")->status == 404);
+
 	// ---- without scan control, the scan routes say so
 	auto scan_off = c.Get("/api/scan");
 	assert(scan_off && scan_off->status == 200 && Json::parse(scan_off->body)["enabled"] == false);
@@ -96,6 +101,45 @@ int main() {
 
 	server.stop();
 	t.join();
+
+	// ---- edits without login: changing needs the control token
+	{
+		auto edit_store = make_file_edit_store(dir / "edits");
+		ServerConfig ecfg;
+		ecfg.port = 0;
+		ecfg.control_token = "edit-token-0123456789abcdef";
+		WebServer eserver(store, ecfg, nullptr, nullptr, edit_store.get());
+		const int eport = eserver.bind();
+		std::thread et([&] { eserver.run(); });
+		httplib::Client ec("127.0.0.1", eport);
+		ec.set_read_timeout(5);
+		const std::string body = Json{{"ip", "10.0.0.2"}, {"port", 23}, {"changes", {{"status", "ignored"}, {"note", "legacy device"}}}}.dump();
+		assert(ec.Get("/api/edits")->status == 200 && Json::parse(ec.Get("/api/edits")->body).empty());
+		assert(ec.Post("/api/edits", body, "application/json")->status == 401); // no token
+		assert(ec.Post("/api/edits", httplib::Headers{{"X-Proculus-Token", "wrong"}}, body, "application/json")->status == 401);
+		auto done = ec.Post("/api/edits", httplib::Headers{{"X-Proculus-Token", "edit-token-0123456789abcdef"}}, body, "application/json");
+		assert(done && done->status == 200 && Json::parse(done->body)["edit"]["edited_by"] == "local");
+		assert(ec.Post("/api/edits", httplib::Headers{{"X-Proculus-Token", "edit-token-0123456789abcdef"}}, body, "text/plain")->status == 415);
+		const Json svc = Json::parse(ec.Get("/api/services?q=legacy")->body);
+		assert(svc["total"] == 1 && svc["services"][0]["status"] == "ignored" && svc["services"][0]["edit"]["service"]["note"] == "legacy device");
+		assert(ec.Post("/api/edits/clear", httplib::Headers{{"X-Proculus-Token", "edit-token-0123456789abcdef"}}, Json{{"ip", "10.0.0.2"}, {"port", 23}}.dump(), "application/json")->status == 200);
+		assert(Json::parse(ec.Get("/api/edits")->body).empty());
+		eserver.stop();
+		et.join();
+	}
+	// and with no token configured at all, nothing can be changed
+	{
+		auto edit_store = make_file_edit_store(dir / "edits2");
+		ServerConfig ecfg;
+		ecfg.port = 0;
+		WebServer eserver(store, ecfg, nullptr, nullptr, edit_store.get());
+		const int eport = eserver.bind();
+		std::thread et([&] { eserver.run(); });
+		httplib::Client ec("127.0.0.1", eport);
+		assert(ec.Post("/api/edits", Json{{"ip", "10.0.0.2"}, {"changes", {{"note", "x"}}}}.dump(), "application/json")->status == 403);
+		eserver.stop();
+		et.join();
+	}
 
 	// ---- with scan control: token, content type, validation, and the Host check still apply
 	{
