@@ -1,0 +1,1448 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "phpmyadmin",
+      "name": "phpMyAdmin",
+      "category": "admin",
+      "tags": [
+        "database",
+        "panel"
+      ],
+      "interest": 3,
+      "description": "Web front end for MySQL/MariaDB.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "phpMyAdmin"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "pma_lang"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "phpMyAdmin"
+          }
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/phpmyadmin/:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/phpmyadmin/:title",
+                "op": "contains",
+                "value": "phpMyAdmin"
+              }
+            ]
+          },
+          "label": "/phpmyadmin/"
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "phpMyAdmin"
+          }
+        },
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "pma_lang"
+            ]
+          }
+        },
+        {
+          "name": "on a path",
+          "evidence": {
+            "path:/phpmyadmin/:status": 200,
+            "path:/phpmyadmin/:title": "phpMyAdmin"
+          }
+        },
+        {
+          "name": "other page",
+          "evidence": {
+            "title": "My Shop"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "adminer",
+      "name": "Adminer",
+      "category": "admin",
+      "tags": [
+        "database",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Login - Adminer"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "login",
+          "evidence": {
+            "title": "Login - Adminer"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Login"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "jenkins",
+      "name": "Jenkins",
+      "category": "admin",
+      "tags": [
+        "ci",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-jenkins",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\[Jenkins\\]"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:x-jenkins",
+        "regex": "([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-jenkins": "2.426.1"
+          },
+          "version": "2.426.1"
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Dashboard [Jenkins]"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Dashboard"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "category": "admin",
+      "tags": [
+        "monitoring",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "window.grafanaBootData"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Grafana$"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "boot data",
+          "evidence": {
+            "body": "<script>window.grafanaBootData = {}</script>"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Grafana"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Dashboard"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "kibana",
+      "name": "Kibana",
+      "category": "admin",
+      "tags": [
+        "monitoring",
+        "elastic",
+        "panel"
+      ],
+      "interest": 3,
+      "threshold": 0.5,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:kbn-name",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:kbn-xpack-sig",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Elastic$"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:kbn-name": "kibana"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Elastic Search"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "elasticsearch",
+      "name": "Elasticsearch API (open)",
+      "category": "admin",
+      "tags": [
+        "database",
+        "api",
+        "panel"
+      ],
+      "interest": 4,
+      "description": "An Elasticsearch node answering without authentication.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "status",
+                "op": "equals",
+                "value": 200
+              },
+              {
+                "field": "body",
+                "op": "contains",
+                "value": "You Know, for Search"
+              }
+            ]
+          },
+          "label": "root answer"
+        }
+      ],
+      "version": {
+        "field": "body",
+        "regex": "\\\"number\\\"\\s*:\\s*\\\"([0-9][0-9.]*)\\\""
+      },
+      "examples": [
+        {
+          "name": "root",
+          "evidence": {
+            "status": 200,
+            "body": "{\"name\":\"n1\",\"tagline\":\"You Know, for Search\",\"version\":{\"number\":\"8.11.1\"}}"
+          },
+          "version": "8.11.1"
+        },
+        {
+          "name": "other json",
+          "evidence": {
+            "status": 200,
+            "body": "{\"ok\":true}"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "solr-admin",
+      "name": "Apache Solr admin",
+      "category": "admin",
+      "tags": [
+        "search",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Solr Admin"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Solr Admin"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Admin"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tomcat-manager",
+      "name": "Tomcat Manager",
+      "category": "admin",
+      "tags": [
+        "java",
+        "panel"
+      ],
+      "interest": 4,
+      "description": "The application deployment console of Tomcat is reachable (credentials are not tried).",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/manager/html:status",
+                "op": "equals",
+                "value": [
+                  401
+                ]
+              },
+              {
+                "field": "path:/manager/html:header:www-authenticate",
+                "op": "contains",
+                "value": "Tomcat Manager"
+              }
+            ]
+          },
+          "label": "/manager/html asks for credentials"
+        }
+      ],
+      "examples": [
+        {
+          "name": "protected manager",
+          "evidence": {
+            "path:/manager/html:status": 401,
+            "path:/manager/html:header:www-authenticate": "Basic realm=\"Tomcat Manager Application\""
+          }
+        },
+        {
+          "name": "generic 401",
+          "evidence": {
+            "path:/manager/html:status": 401,
+            "path:/manager/html:header:www-authenticate": "Basic realm=\"x\""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "webmin",
+      "name": "Webmin",
+      "category": "admin",
+      "tags": [
+        "hosting",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^MiniServ/"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "Login to Webmin"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "MiniServ/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "server header",
+          "evidence": {
+            "header:server": "MiniServ/2.105"
+          },
+          "version": "2.105"
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Login to Webmin"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "cpanel",
+      "name": "cPanel / WHM",
+      "category": "admin",
+      "tags": [
+        "hosting",
+        "panel"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^cpsrvd"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "cPanel"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "cpsrvd/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "server",
+          "evidence": {
+            "header:server": "cpsrvd/11.110.0.19"
+          },
+          "version": "11.110.0.19"
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "cPanel Login"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Login"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "plesk",
+      "name": "Plesk",
+      "category": "admin",
+      "tags": [
+        "hosting",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-powered-by",
+            "op": "regex",
+            "value": "^Plesk"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Plesk (Obsidian|Onyx|Login)?"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-powered-by": "PleskLin"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Plesk Obsidian"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Welcome"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "portainer",
+      "name": "Portainer",
+      "category": "admin",
+      "tags": [
+        "containers",
+        "panel"
+      ],
+      "interest": 4,
+      "description": "Docker/Kubernetes management UI.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Portainer"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "portainer.io"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Portainer"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Containers"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "proxmox",
+      "name": "Proxmox VE",
+      "category": "admin",
+      "tags": [
+        "virtualization",
+        "panel"
+      ],
+      "interest": 4,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Proxmox Virtual Environment"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "PVEAuthCookie"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Proxmox Virtual Environment"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "VM"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "vmware-esxi",
+      "name": "VMware ESXi",
+      "category": "admin",
+      "tags": [
+        "virtualization",
+        "panel"
+      ],
+      "interest": 4,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^(Welcome to )?VMware ESXi"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "VMware Host Client"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "welcome page",
+          "evidence": {
+            "title": "Welcome to VMware ESXi"
+          }
+        },
+        {
+          "name": "host client",
+          "evidence": {
+            "title": "VMware Host Client"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "VM"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "idrac",
+      "name": "Dell iDRAC",
+      "category": "admin",
+      "tags": [
+        "bmc",
+        "out-of-band",
+        "panel"
+      ],
+      "interest": 4,
+      "description": "Out-of-band server management interface.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "Integrated Dell Remote Access Controller|iDRAC[0-9]*\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Integrated Dell Remote Access Controller 9"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Dell"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "ilo",
+      "name": "HPE iLO",
+      "category": "admin",
+      "tags": [
+        "bmc",
+        "out-of-band",
+        "panel"
+      ],
+      "interest": 4,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^HPE?-iLO"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\biLO\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "server",
+          "evidence": {
+            "header:server": "HPE-iLO-Server/1.30"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "iLO 5"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Server"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "zabbix",
+      "name": "Zabbix",
+      "category": "admin",
+      "tags": [
+        "monitoring",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "zbx_sessionid"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "Zabbix"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "zbx_sessionid"
+            ]
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Zabbix"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Monitoring"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "nagios",
+      "name": "Nagios",
+      "category": "admin",
+      "tags": [
+        "monitoring",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:www-authenticate",
+            "op": "contains",
+            "value": "Nagios Access"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "Nagios"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "realm",
+          "evidence": {
+            "header:www-authenticate": "Basic realm=\"Nagios Access\""
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Nagios Core"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Monitoring"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "category": "admin",
+      "tags": [
+        "monitoring",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Prometheus Time Series"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Prometheus Time Series Collection and Processing Server"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Metrics"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab",
+      "category": "admin",
+      "tags": [
+        "scm",
+        "panel"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "_gitlab_session"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bGitLab\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "_gitlab_session"
+            ]
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Sign in · GitLab"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Sign in"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "gitea",
+      "name": "Gitea",
+      "category": "admin",
+      "tags": [
+        "scm",
+        "panel"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "i_like_gitea"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bGitea\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "i_like_gitea"
+            ]
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Sign in"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "sonarqube",
+      "name": "SonarQube",
+      "category": "admin",
+      "tags": [
+        "ci",
+        "panel"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^SonarQube"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "SonarQube"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Quality"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "nexus",
+      "name": "Sonatype Nexus",
+      "category": "admin",
+      "tags": [
+        "artifacts",
+        "panel"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Nexus Repository"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Nexus/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Nexus Repository Manager"
+          }
+        },
+        {
+          "name": "server",
+          "evidence": {
+            "header:server": "Nexus/3.60.0-02 (OSS)"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Repo"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "rabbitmq-management",
+      "name": "RabbitMQ management",
+      "category": "admin",
+      "tags": [
+        "messaging",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^RabbitMQ Management"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "RabbitMQ Management"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Queue"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "kubernetes-dashboard",
+      "name": "Kubernetes Dashboard",
+      "category": "admin",
+      "tags": [
+        "containers",
+        "panel"
+      ],
+      "interest": 4,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Kubernetes Dashboard"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Kubernetes Dashboard"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Dashboard"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "jupyter",
+      "name": "Jupyter",
+      "category": "admin",
+      "tags": [
+        "notebook",
+        "panel"
+      ],
+      "interest": 5,
+      "description": "A notebook server can run arbitrary code for whoever reaches it; check that it requires a token.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "jupyter-config-data"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^(Jupyter|JupyterLab)"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "config",
+          "evidence": {
+            "body": "<script id=\"jupyter-config-data\" type=\"application/json\">"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "JupyterLab"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Lab"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "minio-console",
+      "name": "MinIO Console",
+      "category": "admin",
+      "tags": [
+        "storage",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^MinIO Console"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "MinIO Console"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Storage"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "docker-registry",
+      "name": "Docker registry",
+      "category": "admin",
+      "tags": [
+        "containers",
+        "panel"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:docker-distribution-api-version",
+            "op": "exists"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:docker-distribution-api-version": "registry/2.0"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "http-basic-auth",
+      "name": "HTTP basic authentication prompt",
+      "category": "admin",
+      "tags": [
+        "auth"
+      ],
+      "interest": 1,
+      "description": "The page asks for a user name and password; the realm names what is protected.",
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "all": [
+              {
+                "field": "status",
+                "op": "equals",
+                "value": 401
+              },
+              {
+                "field": "header:www-authenticate",
+                "op": "prefix",
+                "value": "Basic"
+              }
+            ]
+          }
+        }
+      ],
+      "version": {
+        "field": "header:www-authenticate",
+        "regex": "realm=\\\"([A-Za-z0-9._-]+)\\\""
+      },
+      "examples": [
+        {
+          "name": "prompt",
+          "evidence": {
+            "status": 401,
+            "header:www-authenticate": "Basic realm=\"Router\""
+          },
+          "version": "Router"
+        },
+        {
+          "name": "401 with other scheme",
+          "evidence": {
+            "status": 401,
+            "header:www-authenticate": "Bearer"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "200",
+          "evidence": {
+            "status": 200,
+            "header:www-authenticate": "Basic realm=\"x\""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "login-form",
+      "name": "Login form",
+      "category": "admin",
+      "tags": [
+        "auth"
+      ],
+      "interest": 1,
+      "description": "A page with a password field.",
+      "signals": [
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<input[^>]{0,200}type=[\\\"']?password"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "form",
+          "evidence": {
+            "body": "<form><input type=\"password\" name=\"p\"></form>"
+          }
+        },
+        {
+          "name": "unquoted",
+          "evidence": {
+            "body": "<input name=p type=password>"
+          }
+        },
+        {
+          "name": "text input",
+          "evidence": {
+            "body": "<input type=\"text\" name=\"q\">"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "admin-path-protected",
+      "name": "Protected /admin path",
+      "category": "admin",
+      "tags": [
+        "auth"
+      ],
+      "interest": 1,
+      "description": "/admin exists but refuses anonymous access (credentials are not tried).",
+      "signals": [
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "path:/admin:status",
+            "op": "equals",
+            "value": [
+              401,
+              403
+            ]
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "401",
+          "evidence": {
+            "path:/admin:status": 401
+          }
+        },
+        {
+          "name": "404",
+          "evidence": {
+            "path:/admin:status": 404
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "200",
+          "evidence": {
+            "path:/admin:status": 200
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}

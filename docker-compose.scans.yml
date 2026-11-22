@@ -1,0 +1,30 @@
+# Lets the web UI start scans. Use together with docker-compose.yml:
+#
+#   SCAN_SCOPE=172.28.0.0/24 SCAN_PORTS=22,80,443,8080 \
+#     docker compose -f docker-compose.yml -f docker-compose.scans.yml --profile ui up --build ui
+#
+# SCAN_SCOPE and SCAN_PORTS are hard limits for every scan started from the UI: the
+# form can only choose targets inside the scope, ports from the list, and values
+# under the ceilings below. With login (docker-compose.db.yml) the scan.run permission
+# decides who may start scans; without login, set PROCULUS_CONTROL_TOKEN (16+ characters)
+# and enter it in the "New scan" form.
+# Only scan networks you are authorised to scan. Note that on Docker Desktop
+# (macOS, Windows) containers cannot reach the host's LAN; scan a Docker network
+# (such as a lab) or run the gateway natively.
+services:
+  api:
+    command:
+      - serve
+      - --bind=0.0.0.0
+      - --port=8081
+      - --store=/data
+      - --allow-host=api
+      - --enable-scans
+      - --scan-scope=${SCAN_SCOPE:?set SCAN_SCOPE to the networks that may be scanned}
+      - --scan-ports=${SCAN_PORTS:?set SCAN_PORTS to the ports that may be probed}
+      - --scan-max-workers=4
+      - --scan-max-rate=200
+    environment:
+      PROCULUS_CONTROL_TOKEN: ${PROCULUS_CONTROL_TOKEN:-}  # without login: the token for the form (random if empty, printed in the log)
+    volumes:
+      - results:/data

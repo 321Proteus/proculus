@@ -65,6 +65,89 @@ static void expect_equal(const RunRecord& a, const RunRecord& b) {
 	}
 }
 
+static WebRecord sample_web() {
+	WebRecord w;
+	w.url = "https://10.20.0.12/";
+	w.status = 200;
+	w.title = "Welcome \xc5\xbc";
+	w.server = "nginx/1.24.0";
+	w.content_type = "text/html";
+	w.headers = {{"Server", "nginx/1.24.0"}, {"Set-Cookie", "sid=<redacted>; HttpOnly"}};
+	w.cookies = {{"sid", false, true, "Lax"}, {"theme", true, false, ""}};
+	w.redirects = {"/login"};
+	TlsRecord t;
+	t.version = "TLSv1.3";
+	t.cipher = "TLS_AES_256_GCM_SHA384";
+	t.subject = "CN=web-5";
+	t.issuer = "CN=web-5";
+	t.not_after = "2027-01-01T00:00:00Z";
+	t.key_type = "RSA";
+	t.key_bits = 2048;
+	t.self_signed = true;
+	t.hostname_match = false;
+	t.san = {"web-5"};
+	w.tls = t;
+	w.favicon_hash = -1234567;
+	DetectionRecord d;
+	d.id = "nginx";
+	d.name = "nginx";
+	d.category = "server";
+	d.confidence = 0.95;
+	d.interest = 2;
+	d.version = "1.24.0";
+	d.builtin = true;
+	d.tags = {"web"};
+	d.evidence = {"+0.95 header:server regex"};
+	w.detections = {d};
+	return w;
+}
+
+static void test_web_record_roundtrip() {
+	RunRecord r = sample();
+	r.id = 3;
+	r.hosts[0].services[1].web = sample_web();
+	const RunRecord back = run_from_json(Json::parse(dump_json(run_to_json(r))));
+	assert(!back.hosts[0].services[0].web); // services without web data stay without
+	assert(back.hosts[0].services[1].web);
+	const WebRecord& w = *back.hosts[0].services[1].web;
+	const WebRecord e = sample_web();
+	assert(w.url == e.url && w.status == 200 && w.title == e.title && w.server == e.server && w.content_type == e.content_type);
+	assert(w.headers == e.headers && w.redirects == e.redirects);
+	assert(w.cookies.size() == 2 && w.cookies[0].name == "sid" && w.cookies[0].http_only && !w.cookies[0].secure && w.cookies[0].same_site == "Lax");
+	assert(w.tls && w.tls->version == "TLSv1.3" && w.tls->key_bits == 2048 && w.tls->self_signed && w.tls->hostname_match && !*w.tls->hostname_match);
+	assert(w.tls->san == e.tls->san && w.tls->not_after == e.tls->not_after);
+	assert(w.favicon_hash && *w.favicon_hash == -1234567);
+	assert(w.detections.size() == 1 && w.detections[0].id == "nginx" && w.detections[0].confidence == 0.95 && w.detections[0].interest == 2);
+	assert(w.detections[0].version == "1.24.0" && w.detections[0].builtin && w.detections[0].tags == e.detections[0].tags && w.detections[0].evidence == e.detections[0].evidence);
+
+	// optional parts stay optional
+	r.hosts[0].services[1].web = WebRecord{};
+	const RunRecord bare = run_from_json(Json::parse(dump_json(run_to_json(r))));
+	assert(bare.hosts[0].services[1].web && !bare.hosts[0].services[1].web->tls && !bare.hosts[0].services[1].web->favicon_hash);
+
+	// damaged web data is rejected, not half-read
+	auto bad = [&](const std::function<void(Json&)>& damage) {
+		r.hosts[0].services[1].web = sample_web();
+		Json v = run_to_json(r);
+		damage(v["hosts"][0]["services"][1]["web"]);
+		try {
+			run_from_json(v);
+		} catch (const FormatError&) {
+			return true;
+		}
+		return false;
+	};
+	assert(bad([](Json& w) { w["status"] = "ok"; }));
+	assert(bad([](Json& w) { w["headers"] = 5; }));
+	assert(bad([](Json& w) { w["cookies"] = Json::array({5}); }));
+	assert(bad([](Json& w) { w["tls"]["key_bits"] = "big"; }));
+	assert(bad([](Json& w) { w["tls"]["san"] = Json::array({1}); }));
+	assert(bad([](Json& w) { w["detections"][0]["confidence"] = 7; }));
+	assert(bad([](Json& w) { w["detections"][0]["interest"] = 9; }));
+	assert(bad([](Json& w) { w["detections"][0].erase("id"); }));
+	assert(bad([](Json& w) { w = Json::array(); }));
+}
+
 static void test_json_roundtrip() {
 	RunRecord r = sample();
 	r.id = 7;
@@ -105,7 +188,8 @@ static void test_big_numbers_and_hostile_text() {
 	// pathological nesting must not crash the process
 	bool rejected = false;
 	try {
-		(void)Json::parse(std::string(200000, '[') + std::string(200000, ']'));
+		Json deep = Json::parse(std::string(200000, '[') + std::string(200000, ']'));
+		(void)deep;
 	} catch (const Json::exception&) {
 		rejected = true;
 	} catch (...) {
@@ -115,7 +199,12 @@ static void test_big_numbers_and_hostile_text() {
 	// invalid JSON text is an error, not a crash
 	for (const char* bad : {"", "{", "{\"a\":}", "[1,]", "nul", "\"\xff\""}) {
 		bool threw = false;
-		try { (void)Json::parse(bad); } catch (const Json::exception&) { threw = true; }
+		try {
+			Json parsed = Json::parse(bad);
+			(void)parsed;
+		} catch (const Json::exception&) {
+			threw = true;
+		}
 		assert(threw);
 	}
 }
@@ -271,6 +360,7 @@ static void test_unwritable_directory() {
 
 int main() {
 	test_json_roundtrip();
+	test_web_record_roundtrip();
 	test_big_numbers_and_hostile_text();
 	test_rejects_bad_documents();
 	test_store_basics();

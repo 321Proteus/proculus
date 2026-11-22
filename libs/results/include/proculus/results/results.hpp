@@ -13,11 +13,54 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
 namespace proculus {
+
+// What a signature recognised on a web service.
+struct DetectionRecord {
+	std::string id, name, category;
+	double confidence = 0; // 0..0.99
+	int interest = 0;      // 0..5
+	std::string version;
+	bool builtin = false;
+	std::vector<std::string> tags;
+	std::vector<std::string> evidence; // one line per matched signal, for people to check
+};
+
+// Cookie names and attributes only: values are never stored.
+struct CookieRecord {
+	std::string name;
+	bool secure = false;
+	bool http_only = false;
+	std::string same_site;
+};
+
+struct TlsRecord {
+	std::string version, cipher;
+	std::string subject, issuer, not_before, not_after, sha256, key_type;
+	int key_bits = 0;
+	bool self_signed = false, expired = false, not_yet_valid = false;
+	std::optional<bool> hostname_match;
+	std::vector<std::string> san;
+};
+
+// What the web prober saw on a service, plus what the signatures made of it.
+// The page body is not kept. Set-Cookie values are already redacted in `headers`.
+struct WebRecord {
+	std::string url;
+	int status = 0;
+	std::string title, server, content_type;
+	std::vector<std::pair<std::string, std::string>> headers;
+	std::vector<CookieRecord> cookies;
+	std::vector<std::string> redirects; // Location values, as sent
+	std::optional<TlsRecord> tls;
+	std::optional<int32_t> favicon_hash;
+	std::vector<DetectionRecord> detections;
+};
 
 struct ServiceRecord {
 	uint16_t port = 0;
@@ -25,6 +68,7 @@ struct ServiceRecord {
 	std::string state = "open";
 	std::string name, product, version, extrainfo;
 	int confidence = 0; // nmap's 0-10 service match confidence
+	std::optional<WebRecord> web; // set when the service was probed as a web service
 };
 
 struct HostRecord {
@@ -73,6 +117,11 @@ using Json = nlohmann::ordered_json;
 std::string dump_json(const Json& j, int indent = -1);
 
 Json run_to_json(const RunRecord& run);
+
+// The JSON form of a service's web data, as used inside a run. For stores that
+// keep the parts of it separately. web_from_json throws FormatError.
+Json web_to_json(const WebRecord& web);
+WebRecord web_from_json(const Json& v);
 RunRecord run_from_json(const Json& v); // throws FormatError
 
 // Persists runs. Implementations must be safe against partial writes: a run
