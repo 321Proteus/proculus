@@ -17,6 +17,8 @@ static void test_targets() {
 	                         "/api/runs\r\nX-Evil: 1", "/api/runs#frag", "/api/runs?q=a;b", "/api/runs?q=a\\b", "/static/app.js"})
 		assert(!is_proxyable_target(bad));
 	assert(!is_proxyable_target("/api/" + std::string(3000, 'a')));
+	assert(is_postable_path("/api/scan") && is_postable_path("/api/scan/plan") && is_postable_path("/api/scan/stop"));
+	for (const char* no : {"/api/runs", "/api/scan/", "/api/scan/x", "/api/scans", "/api", "/", "/api/scan/stop/"}) assert(!is_postable_path(no));
 }
 
 int main() {
@@ -37,6 +39,21 @@ int main() {
 	fake.Get("/api/html", [](const httplib::Request&, httplib::Response& res) { res.set_content("<script>alert(1)</script>", "text/html"); });
 	fake.Get("/api/redirect", [](const httplib::Request&, httplib::Response& res) { res.set_redirect("http://evil.example/"); });
 	fake.Get("/api/big", [](const httplib::Request&, httplib::Response& res) { res.set_content(std::string(5000, 'x'), "application/json"); });
+	std::string post_token = "unset", post_cookie = "unset", post_body, post_type;
+	fake.Post("/api/scan", [&](const httplib::Request& req, httplib::Response& res) {
+		post_token = req.has_header("X-Proculus-Token") ? req.get_header_value("X-Proculus-Token") : "none";
+		post_cookie = req.has_header("Cookie") ? req.get_header_value("Cookie") : "none";
+		post_body = req.body;
+		post_type = req.get_header_value("Content-Type");
+		if (post_token != "tok123") {
+			res.status = 401;
+			res.set_content("{\"error\":\"wrong or missing control token\"}", "application/json");
+			return;
+		}
+		res.set_content("{\"started\":true}", "application/json");
+	});
+	fake.Post("/api/scan/stop", [&](const httplib::Request&, httplib::Response& res) { res.set_content("{\"stopped\":true}", "application/json"); });
+	fake.Post("/api/echo", [&](const httplib::Request&, httplib::Response& res) { res.set_content("{\"must\":\"not be reachable\"}", "application/json"); });
 	const int fake_port = fake.bind_to_any_port("127.0.0.1");
 	std::thread fake_thread([&] { fake.listen_after_bind(); });
 
@@ -91,8 +108,23 @@ int main() {
 	// ---- paths that are not proxied
 	assert(c.Get("/api/")->status == 400 && c.Get("/api/%2e%2e/x")->status == 400 && c.Get("/api/runs.json")->status == 400);
 
-	// ---- read-only, and Host checked
-	assert(c.Post("/api/echo", "{}", "application/json")->status == 405 && c.Delete("/api/echo")->status == 405 && c.Put("/", "x", "text/plain")->status == 405);
+	// ---- POST: only the scan routes, JSON only, small, with the token passed on and nothing else of the browser's
+	auto started = c.Post("/api/scan", httplib::Headers{{"X-Proculus-Token", "tok123"}, {"Cookie", "session=abc"}}, "{\"targets\":[\"10.0.0.1\"]}", "application/json");
+	assert(started && started->status == 200 && started->body == "{\"started\":true}");
+	assert(post_token == "tok123" && post_cookie == "none" && post_body == "{\"targets\":[\"10.0.0.1\"]}" && post_type == "application/json");
+	auto unauth = c.Post("/api/scan", "{}", "application/json"); // the gateway's refusal reaches the page unchanged
+	assert(unauth && unauth->status == 401 && unauth->body.find("control token") != std::string::npos && post_token == "none");
+	assert(c.Post("/api/scan/stop", httplib::Headers{{"X-Proculus-Token", "tok123"}}, "{}", "application/json")->status == 200);
+	assert(c.Post("/api/scan", httplib::Headers{{"X-Proculus-Token", "tok123"}}, "x=1", "application/x-www-form-urlencoded")->status == 415);
+	assert(c.Post("/api/scan", httplib::Headers{{"X-Proculus-Token", "tok123"}}, std::string(20000, 'a'), "application/json")->status == 413);
+	assert(c.Post("/api/scan?x=1", "{}", "application/json")->status == 405);
+	assert(c.Post("/api/scan", httplib::Headers{{"X-Proculus-Token", "bad token"}}, "{}", "application/json")->status == 400);
+	assert(c.Post("/api/echo", "{}", "application/json")->status == 405 && c.Post("/api/runs", "{}", "application/json")->status == 405); // not postable, though the gateway has them
+	assert(c.Post("/", "{}", "application/json")->status == 405 && c.Post("/api/scan/x", "{}", "application/json")->status == 405);
+
+	// ---- everything else is read-only, and Host is checked
+	assert(c.Delete("/api/echo")->status == 405 && c.Put("/", "x", "text/plain")->status == 405 && c.Patch("/api/scan", "{}", "application/json")->status == 405);
+	assert(c.Post("/api/scan", httplib::Headers{{"Host", "attacker.example"}, {"X-Proculus-Token", "tok123"}}, "{}", "application/json")->status == 403);
 	httplib::Headers evil = {{"Host", "attacker.example"}};
 	assert(c.Get("/", evil)->status == 403 && c.Get("/api/echo?q=1&n=1", evil)->status == 403 && c.Get("/app.js", evil)->status == 403);
 	assert(c.Get("/", httplib::Headers{{"Host", "localhost:8080"}})->status == 200);

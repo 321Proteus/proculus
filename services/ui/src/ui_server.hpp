@@ -10,11 +10,14 @@
 // what is decided by the gateway, never here. What the proxy does guarantee:
 //  * only GET and HEAD, only /api/ paths made of plain characters, forwarded to
 //    the one configured upstream (the browser cannot choose the destination);
+//    POST only to the scan routes (/api/scan, /api/scan/plan, /api/scan/stop),
+//    JSON only and small;
 //  * only a JSON answer is passed back, within a size limit and a time limit;
 //    anything else (a redirect, HTML, a huge body, an unreachable gateway)
 //    becomes a clean 502;
 //  * requests are forwarded without the browser's own headers (cookies and
-//    Host are not passed on).
+//    Host are not passed on); the one exception is the control token
+//    (X-Proculus-Token) on those POSTs, which the gateway checks.
 // It has no login of its own, so like the gateway API it listens on loopback
 // by default and checks the Host header (DNS rebinding).
 
@@ -38,11 +41,14 @@ struct UiConfig {
 	std::string web_dir;                     // serve the files from this directory instead of the built-in copy (for UI development)
 	int api_timeout_seconds = 10;
 	size_t max_api_body = 8 * 1024 * 1024;
+	size_t max_post_body = 16 * 1024;
 };
 
 // Is `target` (path and query exactly as received) something the proxy will
 // forward? Exposed for tests.
 bool is_proxyable_target(const std::string& target);
+// The paths that may be POSTed (without a query). Exposed for tests.
+bool is_postable_path(const std::string& path);
 
 class UiServer {
 public:

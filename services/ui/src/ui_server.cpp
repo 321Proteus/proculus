@@ -48,6 +48,8 @@ bool is_proxyable_target(const std::string& target) {
 	return true;
 }
 
+bool is_postable_path(const std::string& path) { return path == "/api/scan" || path == "/api/scan/plan" || path == "/api/scan/stop"; }
+
 UiServer::UiServer(UiConfig config) : config_(std::move(config)), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
 
@@ -65,8 +67,8 @@ UiServer::UiServer(UiConfig config) : config_(std::move(config)), server_(std::m
 	});
 
 	svr.set_pre_routing_handler([allowed](const httplib::Request& req, httplib::Response& res) {
-		if (req.method != "GET" && req.method != "HEAD") {
-			send_error(res, 405, "read-only");
+		if (req.method != "GET" && req.method != "HEAD" && !(req.method == "POST" && is_postable_path(req.path))) {
+			send_error(res, 405, "not allowed");
 			return httplib::Server::HandlerResponse::Handled;
 		}
 		if (!web::host_allowed(req.get_header_value("Host"), allowed)) {
@@ -81,24 +83,41 @@ UiServer::UiServer(UiConfig config) : config_(std::move(config)), server_(std::m
 	});
 
 	// ---- /api/...: on to the gateway
-	svr.Get(R"(/api/.*)", [this](const httplib::Request& req, httplib::Response& res) {
-		if (!is_proxyable_target(req.target)) return send_error(res, 400, "bad request");
-		httplib::Client upstream(config_.api.host, config_.api.port);
-		upstream.set_connection_timeout(3, 0);
-		upstream.set_read_timeout(config_.api_timeout_seconds, 0);
-		upstream.set_write_timeout(config_.api_timeout_seconds, 0);
-		upstream.set_follow_location(false);
-		auto answer = upstream.Get(req.target, httplib::Headers{{"Accept", "application/json"}});
-
+	auto pass_on = [this](httplib::Response& res, const httplib::Result& answer) {
 		if (!answer) return send_error(res, 502, "the API is not reachable");
 		if (answer->body.size() > config_.max_api_body) return send_error(res, 502, "the API answer is too large");
 		const std::string type = lower(answer->get_header_value("Content-Type"));
 		if (answer->status < 200 || answer->status > 599 || (answer->status >= 300 && answer->status < 400) || type.compare(0, 16, "application/json") != 0)
 			return send_error(res, 502, "unexpected answer from the API");
-
 		res.status = answer->status;
 		res.set_header("Cache-Control", "no-store");
 		res.set_content(answer->body, "application/json; charset=utf-8");
+	};
+	auto client = [this]() {
+		auto upstream = std::make_unique<httplib::Client>(config_.api.host, config_.api.port);
+		upstream->set_connection_timeout(3, 0);
+		upstream->set_read_timeout(config_.api_timeout_seconds, 0);
+		upstream->set_write_timeout(config_.api_timeout_seconds, 0);
+		upstream->set_follow_location(false);
+		return upstream;
+	};
+
+	svr.Get(R"(/api/.*)", [client, pass_on](const httplib::Request& req, httplib::Response& res) {
+		if (!is_proxyable_target(req.target)) return send_error(res, 400, "bad request");
+		pass_on(res, client()->Get(req.target, httplib::Headers{{"Accept", "application/json"}}));
+	});
+
+	svr.Post(R"(/api/.*)", [this, client, pass_on](const httplib::Request& req, httplib::Response& res) {
+		if (!is_proxyable_target(req.target) || req.target.find('?') != std::string::npos || !is_postable_path(req.path)) return send_error(res, 405, "not allowed");
+		if (req.get_header_value("Content-Type").compare(0, 16, "application/json") != 0) return send_error(res, 415, "send JSON");
+		if (req.body.size() > config_.max_post_body) return send_error(res, 413, "the request is too large");
+		httplib::Headers headers = {{"Accept", "application/json"}};
+		const std::string token = req.get_header_value("X-Proculus-Token");
+		if (!token.empty()) {
+			if (token.size() > 128 || !std::all_of(token.begin(), token.end(), [](unsigned char c) { return c > 0x20 && c < 0x7f; })) return send_error(res, 400, "bad token");
+			headers.emplace("X-Proculus-Token", token);
+		}
+		pass_on(res, client()->Post(req.target, headers, req.body, "application/json"));
 	});
 
 	// ---- the pages
