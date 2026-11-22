@@ -1,0 +1,27 @@
+# Keeps the runs in Postgres (sealed fields, see libs/pgstore) instead of files.
+# Use together with docker-compose.yml:
+#
+#   export PROCULUS_KEY=1:$(openssl rand -hex 32)      # keep it: without it the stored data cannot be read
+#   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db --profile ui up --build ui
+#   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db --profile tools run --rm runner --scope ... --allowed-ports ... --web ...
+#
+# The key encrypts the sensitive columns (titles, headers, cookies, TLS data,
+# detections). Losing it makes that data unreadable; changing it needs a key
+# ring (see libs/db/crypto.hpp: "id:hex" lines in PROCULUS_KEY_FILE).
+# The database password below is for development only: use a secret in any real deployment.
+services:
+  api:
+    environment:
+      PROCULUS_DB_URL: postgresql://proculus:proculus@postgres:5432/proculus
+      PROCULUS_KEY: ${PROCULUS_KEY:?set PROCULUS_KEY to 1:<64 hex characters>, e.g. 1:$(openssl rand -hex 32)}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  runner:
+    environment:
+      PROCULUS_DB_URL: postgresql://proculus:proculus@postgres:5432/proculus
+      PROCULUS_KEY: ${PROCULUS_KEY:?set PROCULUS_KEY to 1:<64 hex characters>, e.g. 1:$(openssl rand -hex 32)}
+    depends_on:
+      postgres:
+        condition: service_healthy

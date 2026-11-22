@@ -6,6 +6,10 @@ target_link_libraries(runner_core PUBLIC Threads::Threads)
 
 add_executable(runner src/main.cpp)
 target_link_libraries(runner PRIVATE runner_core)
+if(TARGET proculus_pgstore)
+	target_link_libraries(runner PRIVATE proculus_pgstore)
+	target_compile_definitions(runner PRIVATE PROCULUS_HAVE_PGSTORE)
+endif()
 
 if(BUILD_TESTING)
 	add_executable(test_runner tests/test_runner.cpp)

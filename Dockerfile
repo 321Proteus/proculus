@@ -26,8 +26,11 @@ RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus \
 
 FROM runtime-base AS gateway
 # nmap, libssl and libpcre2 are for scans started from the web UI (off unless --enable-scans)
-RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 nmap libssl3 libpcre2-8-0 \
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 nmap libssl3 libpcre2-8-0 libpq5 libsodium23 \
     && rm -rf /var/lib/apt/lists/*
+# for --db (runs in Postgres)
+COPY --from=build /src/db/migrations /usr/share/proculus/migrations
+ENV PROCULUS_MIGRATIONS_DIR=/usr/share/proculus/migrations
 COPY --from=build /src/build/services/gateway/gateway /usr/local/bin/gateway
 USER proculus
 ENTRYPOINT ["gateway"]
@@ -38,8 +41,10 @@ USER proculus
 ENTRYPOINT ["ui"]
 
 FROM runtime-base AS runner
-RUN apt-get update && apt-get install -y --no-install-recommends nmap libexpat1 libssl3 libpcre2-8-0 \
+RUN apt-get update && apt-get install -y --no-install-recommends nmap libexpat1 libssl3 libpcre2-8-0 libpq5 libsodium23 \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/db/migrations /usr/share/proculus/migrations
+ENV PROCULUS_MIGRATIONS_DIR=/usr/share/proculus/migrations
 COPY --from=build /src/build/services/runner/runner /usr/local/bin/runner
 USER proculus
 ENTRYPOINT ["runner"]

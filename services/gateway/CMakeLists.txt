@@ -7,6 +7,10 @@ target_link_libraries(gateway_core PUBLIC Threads::Threads)
 
 add_executable(gateway src/main.cpp src/serve.cpp)
 target_link_libraries(gateway PRIVATE gateway_core proculus_common)
+if(TARGET proculus_pgstore)
+	target_link_libraries(gateway PRIVATE proculus_pgstore)
+	target_compile_definitions(gateway PRIVATE PROCULUS_HAVE_PGSTORE)
+endif()
 
 if(BUILD_TESTING)
 	add_executable(test_demo tests/test_demo.cpp)

@@ -8,6 +8,9 @@
 #include <stdexcept>
 
 #include "proculus/web/guard.hpp"
+#ifdef PROCULUS_HAVE_PGSTORE
+#include "proculus/pgstore/pgstore.hpp"
+#endif
 #include "scan_control.hpp"
 #include "server.hpp"
 #include "token_guard.hpp"
@@ -26,6 +29,10 @@ void usage() {
 	std::cerr << "usage: gateway serve [options]\n"
 	          << "Serves a read-only JSON API over the saved runs (the web UI is services/ui).\n"
 	          << "  --store DIR       directory of saved runs (default: $PROCULUS_STORE_DIR)\n"
+#ifdef PROCULUS_HAVE_PGSTORE
+	          << "  --db URL          read and write runs in Postgres instead of --store (or $PROCULUS_DB_URL; keys from $PROCULUS_KEY / $PROCULUS_KEY_FILE)\n"
+	          << "  --db-migrations D where the SQL migrations are (default $PROCULUS_MIGRATIONS_DIR)\n"
+#endif
 	          << "  --port N          port to listen on (default 8081)\n"
 	          << "  --bind ADDR       address to listen on (default 127.0.0.1)\n"
 	          << "  --allow-host H    accept requests addressed to this host name too (repeatable)\n"
@@ -43,11 +50,13 @@ void usage() {
 } // namespace
 
 int serve_command(int argc, char** argv) {
-	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
+	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_DB, OPT_DB_MIGRATIONS, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
 		OPT_SCAN_ALLOW_RESERVED, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
 	static const option opts[] = {
 		{"store", required_argument, nullptr, OPT_STORE}, {"port", required_argument, nullptr, OPT_PORT},
 		{"bind", required_argument, nullptr, OPT_BIND},   {"allow-host", required_argument, nullptr, OPT_ALLOW_HOST},
+		{"db", required_argument, nullptr, OPT_DB},
+		{"db-migrations", required_argument, nullptr, OPT_DB_MIGRATIONS},
 		{"enable-scans", no_argument, nullptr, OPT_ENABLE_SCANS},
 		{"scan-scope", required_argument, nullptr, OPT_SCAN_SCOPE},
 		{"scan-ports", required_argument, nullptr, OPT_SCAN_PORTS},
@@ -62,7 +71,7 @@ int serve_command(int argc, char** argv) {
 	};
 	ServerConfig cfg;
 	ScanPolicy policy;
-	std::string store_dir;
+	std::string store_dir, db_url, db_migrations;
 	try {
 		optind = 1;
 		opterr = 0;
@@ -73,6 +82,8 @@ int serve_command(int argc, char** argv) {
 			case OPT_PORT: cfg.port = web::parse_port(optarg); break;
 			case OPT_BIND: cfg.bind = optarg; break;
 			case OPT_ALLOW_HOST: cfg.allowed_hosts.push_back(optarg); break;
+			case OPT_DB: db_url = optarg; break;
+			case OPT_DB_MIGRATIONS: db_migrations = optarg; break;
 			case OPT_ENABLE_SCANS: policy.enabled = true; break;
 			case OPT_SCAN_SCOPE: policy.scope = optarg; break;
 			case OPT_SCAN_PORTS: policy.allowed_ports = optarg; break;
@@ -88,11 +99,25 @@ int serve_command(int argc, char** argv) {
 			}
 		}
 		if (optind < argc) throw std::invalid_argument(std::string("unexpected argument: ") + argv[optind]);
+		if (db_url.empty())
+			if (const char* env = std::getenv("PROCULUS_DB_URL")) db_url = env;
 		if (store_dir.empty())
 			if (const char* env = std::getenv("PROCULUS_STORE_DIR")) store_dir = env;
-		if (store_dir.empty()) throw std::invalid_argument("no store: give --store DIR or set PROCULUS_STORE_DIR");
+		if (store_dir.empty() && db_url.empty()) throw std::invalid_argument("no store: give --store DIR (or --db URL), or set PROCULUS_STORE_DIR");
 
-		FileResultStore store(store_dir);
+		std::unique_ptr<ResultStore> store_owner;
+		std::string store_name = store_dir;
+		if (!db_url.empty()) {
+#ifdef PROCULUS_HAVE_PGSTORE
+			store_owner = open_pg_store(db_url, db_migrations.empty() ? default_migrations_dir() : std::filesystem::path(db_migrations));
+			store_name = "the Postgres database";
+#else
+			throw std::invalid_argument("this build has no Postgres support (libpq and libsodium were not found)");
+#endif
+		} else {
+			store_owner = std::make_unique<FileResultStore>(store_dir);
+		}
+		ResultStore& store = *store_owner;
 		if (policy.enabled) {
 			if (const char* env = std::getenv("PROCULUS_CONTROL_TOKEN"); env && *env) {
 				cfg.control_token = env;
@@ -108,7 +133,7 @@ int serve_command(int argc, char** argv) {
 		g_server = &server;
 		std::signal(SIGINT, on_signal);
 		std::signal(SIGTERM, on_signal);
-		std::cerr << "proculus: serving " << store_dir << " on http://" << cfg.bind << ":" << port << "/ (API, no login yet)\n";
+		std::cerr << "proculus: serving " << store_name << " on http://" << cfg.bind << ":" << port << "/ (API, no login yet)\n";
 		server.run();
 		g_server = nullptr;
 		return 0;

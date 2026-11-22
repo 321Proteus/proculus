@@ -134,6 +134,28 @@ Content-Security-Policy. Titles and banners come from scanned hosts and are
 never inserted as HTML. For UI development, `ui --web-dir services/ui/web`
 serves the files from disk without a rebuild.
 
+## Keeping runs in Postgres
+
+By default runs are JSON files. `runner` and `gateway serve` can keep them in
+Postgres instead (`--db URL` or `PROCULUS_DB_URL`); nothing else changes, and the
+file store remains the default. Addresses, ports, timestamps and service names stay
+in the clear so runs can be queried; page titles, headers, cookies, TLS details,
+redirects and detections are encrypted per column with XChaCha20-Poly1305
+(libsodium), so a value copied into another column or opened with another key
+fails. A run is saved in one transaction.
+
+```sh
+export PROCULUS_KEY=1:$(openssl rand -hex 32)       # or PROCULUS_KEY_FILE; keep it safe
+export PROCULUS_DB_URL=postgresql://user:password@localhost:5432/proculus
+./build/services/runner/runner --scope 10.0.0.0/24 --allowed-ports 22,80,443 --web 10.0.0.0/24   # saves into Postgres
+./build/services/gateway/gateway serve                                                           # reads from it
+```
+
+The schema is created on first use from `db/migrations`. `differ` and `exporter` still
+read files for now. In Docker: `docker-compose.db.yml` (see its header). Needs libpq
+and libsodium; without them the programs build as before and `--db` says so.
+Tests: `PROCULUS_TEST_DB_URL=postgresql://... ctest --test-dir build`.
+
 ## Following changes over time
 
 `differ` compares saved runs and follows hosts and services across all of them:
@@ -212,6 +234,7 @@ stored as `name=<redacted>; attributes`.
 - `libs/timing` – scan speed estimator
 - `libs/results` – what a scan run found, and the store that keeps it
 - `libs/db` – Postgres access, field encryption, migrations
+- `libs/pgstore` – runs kept in Postgres (the same store interface as the files)
 - `services/planner` – target list to balanced, spread-out chunks
 - `services/scan-worker` – validated nmap runs, XML parsing, emulated network
 - `services/runner` – real scans: planning, nmap workers, scan windows, web probing, saved runs

@@ -3,12 +3,16 @@
 #include <getopt.h>
 
 #include <csignal>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <sstream>
 
 #include "runner.hpp"
+#ifdef PROCULUS_HAVE_PGSTORE
+#include "proculus/pgstore/pgstore.hpp"
+#endif
 
 using namespace proculus;
 
@@ -18,7 +22,7 @@ static void on_signal(int) {
 }
 
 enum {
-	OPT_SCOPE = 256, OPT_PORTS, OPT_SERVICE_PORTS, OPT_EXCLUDE_FILE, OPT_STORE, OPT_WORKERS, OPT_RATE, OPT_TIMING, OPT_RETRIES, OPT_HOST_TIMEOUT,
+	OPT_SCOPE = 256, OPT_PORTS, OPT_SERVICE_PORTS, OPT_EXCLUDE_FILE, OPT_STORE, OPT_DB, OPT_WORKERS, OPT_RATE, OPT_TIMING, OPT_RETRIES, OPT_HOST_TIMEOUT,
 	OPT_PRIVILEGED, OPT_NO_VERSION, OPT_ALLOW_RESERVED, OPT_NMAP, OPT_CHUNK_SECONDS, OPT_DISC_RATE, OPT_SERV_RATE, OPT_ATTEMPTS, OPT_WINDOW, OPT_OFFSET,
 	OPT_DAYS, OPT_INTERVAL, OPT_MIN_REMAINING, OPT_ROUNDS, OPT_WEB, OPT_WEB_RATE, OPT_WEB_WORKERS, OPT_MAX_PATHS, OPT_SIGNATURES, OPT_NO_BUILTIN_SIGS, OPT_DRY_RUN, OPT_HELP
 };
@@ -31,6 +35,7 @@ static const option long_opts[] = {
 	{"exclude-file", required_argument, nullptr, OPT_EXCLUDE_FILE},
 	{"targets", required_argument, nullptr, 't'},
 	{"store", required_argument, nullptr, OPT_STORE},
+	{"db", required_argument, nullptr, OPT_DB},
 	{"workers", required_argument, nullptr, OPT_WORKERS},
 	{"rate", required_argument, nullptr, OPT_RATE},
 	{"timing", required_argument, nullptr, OPT_TIMING},
@@ -88,6 +93,7 @@ static void usage() {
 		<< "  --interval 24h           minimum time between rounds       --rounds N   rounds to run (default 1, 0 = until stopped)\n"
 		<< "results\n"
 		<< "  --store DIR              save every round as a run (read with exporter / differ / the web UI)\n"
+		<< "  --db URL                 save runs in Postgres instead (or $PROCULUS_DB_URL; keys from $PROCULUS_KEY / $PROCULUS_KEY_FILE)\n"
 		<< "  --web                    probe the web services found (headers, cookies, TLS, titles) and detect technologies\n"
 		<< "  --web-rate N / --web-workers N / --max-paths N / --signatures PATH / --no-builtin-signatures   (see http-prober)\n"
 		<< "  --dry-run                show the plan and the estimated duration, scan nothing\n"
@@ -124,7 +130,7 @@ static void read_lines(std::istream& in, std::vector<std::string>& out) {
 
 int main(int argc, char** argv) {
 	RunnerConfig cfg;
-	std::string store_dir, window, offset, days, interval, min_remaining, targets_file;
+	std::string store_dir, db_url, window, offset, days, interval, min_remaining, targets_file;
 	int rounds = 1;
 	bool dry_run = false;
 
@@ -145,6 +151,7 @@ int main(int argc, char** argv) {
 			}
 			case 't': targets_file = optarg; break;
 			case OPT_STORE: store_dir = optarg; break;
+			case OPT_DB: db_url = optarg; break;
 			case OPT_WORKERS: cfg.workers = static_cast<unsigned>(to_double(optarg, "--workers")); break;
 			case OPT_RATE: cfg.rate = static_cast<int>(to_double(optarg, "--rate")); break;
 			case OPT_TIMING: cfg.timing = static_cast<int>(to_double(optarg, "--timing")); break;
@@ -223,8 +230,18 @@ int main(int argc, char** argv) {
 			return 0;
 		}
 
-		std::unique_ptr<FileResultStore> store;
-		if (!store_dir.empty()) store = std::make_unique<FileResultStore>(store_dir);
+		if (db_url.empty())
+			if (const char* env = std::getenv("PROCULUS_DB_URL")) db_url = env;
+		std::unique_ptr<ResultStore> store;
+		if (!db_url.empty()) {
+#ifdef PROCULUS_HAVE_PGSTORE
+			store = open_pg_store(db_url, default_migrations_dir());
+#else
+			throw std::invalid_argument("this build has no Postgres support (libpq and libsodium were not found)");
+#endif
+		} else if (!store_dir.empty()) {
+			store = std::make_unique<FileResultStore>(store_dir);
+		}
 		SystemClock clock;
 		RunnerDeps deps;
 		deps.clock = &clock;
