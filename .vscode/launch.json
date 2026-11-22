@@ -25,6 +25,18 @@
 			"preLaunchTask": "proculus: fresh start (results-dev)",
 			"terminal": "integrated"
 		},
+		// The whole system on an emulated network: scans from the UI find made-up hosts and web servers, nothing is sent anywhere.
+		// results-sim/ keeps its own accounts and runs, so it never mixes with real data.
+		{
+			"name": "Proculus (simulation)",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/services/gateway/gateway",
+			"args": ["serve", "--simulate", "--store", "${workspaceFolder}/results-sim", "--port", "8082", "--ui-port", "8081"],
+			"cwd": "${workspaceFolder}",
+			"preLaunchTask": "cmake: build",
+			"terminal": "integrated"
+		},
 		// The emulated-network demo (writes runs into results/, which the dashboard then shows).
 		{
 			"name": "Proculus: demo data (emulated network)",

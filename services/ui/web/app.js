@@ -108,6 +108,7 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  simBadge: 'SYMULACJA', simTip: 'Skany działają na emulowanej sieci: nic nie jest wysyłane do prawdziwej sieci.',
   portProgress: 'Postęp skanowania portów', tipPortProgress: 'Ile portów tego hosta zostało już sprawdzonych (z listy portów skanu). W trakcie pracy nmapa to szacunek; po zakończeniu porcji jest dokładne.',
   exploredTitle: 'Zbadane ciekawe porty', tipExplored: 'Otwarte porty (ciekawe), które zostały w pełni zbadane: rozpoznana usługa i, dla usług WWW, sprawdzenie sondą. Format: zbadane/otwarte.',
   exportBtn: 'Eksport…', exportTitle: 'Eksport w wybranym formacie', exportIntro: 'Napisz, jak ma wyglądać jedna linia dla każdej usługi (z bieżącymi filtrami). Kliknij nazwę pola, aby je wstawić.',
@@ -158,6 +159,7 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  simBadge: 'SIMULATION', simTip: 'Scans run on an emulated network: nothing is sent to a real network.',
   portProgress: 'Port scan progress', tipPortProgress: 'How many of this host\'s ports (from the scan\'s port list) have been checked. An estimate while nmap is working, exact once its chunk is done.',
   exploredTitle: 'Interesting ports explored', tipExplored: 'Open (interesting) ports that have been examined in full: service identified and, for web services, probed. Shown as explored/open.',
   exportBtn: 'Export…', exportTitle: 'Export in your own format', exportIntro: 'Write what one line should look like for every service (with the current filters). Click a field name to insert it.',
@@ -1044,13 +1046,14 @@ function showGate() {
 }
 
 // ---------------------------------------------------------------- shell: header and tabs
-let scanPolicy = null;
+let scanPolicy = null, scanSimulated = false;
 function renderHeader() {
   const bar = $('#topbar');
   const signedIn = session.user;
   bar.replaceChildren(
     el('div', { class: 'brand-wrap' }, emblem(42), el('div', {}, el('div', { class: 'brand-title' }, 'PROCULUS'), el('div', { class: 'brand-sub' }, t('brandSub'))),
       el('span', { class: 'badge ' + (auth && auth.enabled ? 'b-green' : 'b-red') }, auth && auth.enabled ? t('badgeAuthOn') : t('badgeAuthOff')),
+      scanSimulated ? el('span', { class: 'badge b-warn', title: t('simTip') }, t('simBadge')) : null,
       scanPolicy ? el('span', { class: 'badge b-blue mono', title: t('allowedPorts') + ': ' + scanPolicy.allowed_ports }, t('badgeScope') + ': ' + scanPolicy.scope) : null),
     el('div', { class: 'head-right' },
       el('button', { class: 'sec', onclick: () => startTour(true) }, '🧭 ' + t('tourBtn')), langSelect(),
@@ -1100,7 +1103,7 @@ async function render() {
     $('#gate').hidden = true;
     $('#appScreen').hidden = false;
     const { name, params } = parseHash();
-    try { const s = await api('/api/scan'); scanPolicy = s.enabled ? s.policy : null; } catch (e) { if (e instanceof LoginRequired) throw e; scanPolicy = null; }
+    try { const s = await api('/api/scan'); scanPolicy = s.enabled ? s.policy : null; scanSimulated = !!s.simulated; } catch (e) { if (e instanceof LoginRequired) throw e; scanPolicy = null; }
     if (token !== renderToken) return;
     renderHeader();
     renderNav(name);

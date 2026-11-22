@@ -132,6 +132,14 @@ work, but only as first-run defaults until the settings file exists. Without log
 (`--no-auth`) there is nobody to answer for a change, so the settings can only come
 from those flags.
 
+**Simulation.** `gateway serve --simulate --store results-sim` runs the whole system on an
+emulated network (`--sim-networks`, `--sim-seed`): scans from the UI go through the real
+controller, planner, runner and web stage, but the hosts, services and web servers are made up
+(they change from scan to scan), so nothing is sent anywhere. The scope can not leave the
+emulated network, the header shows a SIMULATION badge, and scans take a few seconds so the
+live view and the stop button behave as with nmap. Use a store of its own (VS Code:
+"Proculus (simulation)").
+
 **Presets.** The New scan form offers ready-made presets to every user, built from the
 machine the gateway runs on: `localhost` (common ports), `local hosts` (this machine and
 the usual router address) and the `whole local network`. Choosing one only fills in the

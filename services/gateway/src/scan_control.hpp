@@ -50,6 +50,7 @@ struct ScanPreset {
 
 struct ScanPolicy {
 	bool enabled = false;
+	bool simulated = false;     // scans run against an emulated network (gateway serve --simulate); shown in the status
 	std::string ceiling;        // set at start-up by the operator: the scope can never go beyond it (empty: no limit)
 	std::string scope;          // required when enabled
 	std::string allowed_ports;  // required when enabled

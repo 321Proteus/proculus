@@ -283,6 +283,7 @@ struct ScanController::Impl {
 		c.privileged = r.privileged;
 		c.nmap_path = policy.nmap_path;
 		c.web.enabled = r.web;
+		if (policy.simulated) c.web.requests_per_second = 500; // made-up servers: no reason to be gentle
 		c.web.signature_paths = policy.signature_paths;
 		return c;
 	}
@@ -475,7 +476,7 @@ bool ScanController::load_settings(std::string* problem) {
 Json ScanController::status() const {
 	const Impl& i = *impl_;
 	const ScanPolicy policy = i.snapshot();
-	Json j = {{"enabled", policy.enabled}};
+	Json j = {{"enabled", policy.enabled}, {"simulated", policy.simulated}};
 	if (!policy.enabled) return j;
 	j["policy"] = {{"scope", policy.scope}, {"allowed_ports", policy.allowed_ports}, {"max_workers", policy.max_workers}, {"max_rate", policy.max_rate},
 		{"allow_privileged", policy.allow_privileged}, {"allow_web", policy.allow_web}};

@@ -19,6 +19,7 @@
 #endif
 #include "scan_control.hpp"
 #include "server.hpp"
+#include "simulate.hpp"
 #include "token_guard.hpp"
 #include "ui_server.hpp"
 
@@ -45,6 +46,9 @@ void usage() {
 	          << "web UI (started in this same process, so one command is enough; --no-ui if the UI runs as its own service)\n"
 	          << "  --ui-port N       port of the web UI (default 8080)   --ui-bind ADDR  address of the web UI (default 127.0.0.1)\n"
 	          << "  --no-ui           serve only the API\n"
+	          << "simulation: the whole system against an emulated network, nothing is sent anywhere\n"
+	          << "  --simulate        scans from the UI run on an emulated network (hosts that come and go, made-up web servers); use a store of its own\n"
+	          << "  --sim-networks L  what the emulated network covers (default 10.20.0.0/20,10.30.0.0/20,172.16.8.0/20)   --sim-seed N  (default 42)\n"
 	          << "login (on by default: the first visit asks for the setup token printed here and creates the administrator)\n"
 	          << "  --accounts DIR    where accounts are kept without a database (default: DIR/accounts inside --store)\n"
 	          << "  --no-auth         NO LOGIN: anyone who can reach the server can read everything (local use only)\n"
@@ -66,7 +70,7 @@ void usage() {
 
 int serve_command(int argc, char** argv) {
 	enum { OPT_STORE = 256, OPT_PORT, OPT_BIND, OPT_ALLOW_HOST, OPT_DB, OPT_DB_MIGRATIONS, OPT_AUTH, OPT_NO_AUTH, OPT_ACCOUNTS, OPT_ENABLE_SCANS, OPT_SCAN_SCOPE, OPT_SCAN_PORTS, OPT_SCAN_WORKERS, OPT_SCAN_RATE, OPT_SCAN_PRIVILEGED, OPT_SCAN_NO_WEB,
-		OPT_SCAN_ALLOW_RESERVED, OPT_UI_PORT, OPT_UI_BIND, OPT_NO_UI, OPT_SCAN_CEILING, OPT_SCAN_CONFIG, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
+		OPT_SCAN_ALLOW_RESERVED, OPT_UI_PORT, OPT_UI_BIND, OPT_NO_UI, OPT_SIMULATE, OPT_SIM_NETWORKS, OPT_SIM_SEED, OPT_SCAN_CEILING, OPT_SCAN_CONFIG, OPT_SCAN_NMAP, OPT_SCAN_SIGNATURES, OPT_HELP };
 	static const option opts[] = {
 		{"store", required_argument, nullptr, OPT_STORE}, {"port", required_argument, nullptr, OPT_PORT},
 		{"bind", required_argument, nullptr, OPT_BIND},   {"allow-host", required_argument, nullptr, OPT_ALLOW_HOST},
@@ -83,6 +87,9 @@ int serve_command(int argc, char** argv) {
 		{"scan-allow-privileged", no_argument, nullptr, OPT_SCAN_PRIVILEGED},
 		{"scan-no-web", no_argument, nullptr, OPT_SCAN_NO_WEB},
 		{"scan-allow-reserved", no_argument, nullptr, OPT_SCAN_ALLOW_RESERVED},
+		{"simulate", no_argument, nullptr, OPT_SIMULATE},
+		{"sim-networks", required_argument, nullptr, OPT_SIM_NETWORKS},
+		{"sim-seed", required_argument, nullptr, OPT_SIM_SEED},
 		{"ui-port", required_argument, nullptr, OPT_UI_PORT},
 		{"ui-bind", required_argument, nullptr, OPT_UI_BIND},
 		{"no-ui", no_argument, nullptr, OPT_NO_UI},
@@ -94,7 +101,9 @@ int serve_command(int argc, char** argv) {
 	};
 	ServerConfig cfg;
 	UiConfig ui;
-	bool with_ui = true;
+	bool with_ui = true, simulate = false;
+	std::string sim_networks = "10.20.0.0/20,10.30.0.0/20,172.16.8.0/20";
+	uint64_t sim_seed = 42;
 	ScanPolicy policy;
 	std::string store_dir, db_url, db_migrations;
 	bool use_auth = true; // login is the default; --no-auth turns it off
@@ -122,6 +131,9 @@ int serve_command(int argc, char** argv) {
 			case OPT_SCAN_PRIVILEGED: policy.allow_privileged = true; break;
 			case OPT_SCAN_NO_WEB: policy.allow_web = false; break;
 			case OPT_SCAN_ALLOW_RESERVED: policy.allow_reserved = true; break;
+			case OPT_SIMULATE: simulate = true; break;
+			case OPT_SIM_NETWORKS: sim_networks = optarg; break;
+			case OPT_SIM_SEED: sim_seed = std::stoull(optarg); break;
 			case OPT_UI_PORT: ui.port = web::parse_port(optarg); break;
 			case OPT_UI_BIND: ui.bind = optarg; break;
 			case OPT_NO_UI: with_ui = false; break;
@@ -197,7 +209,20 @@ int serve_command(int argc, char** argv) {
 				std::cerr << "proculus: control token for changes (scans, edits): " << cfg.control_token << "\n";
 			}
 		}
-		ScanController scans(policy, &store); // validates the flags (first-run defaults)
+		RunnerDeps scan_deps;
+		std::shared_ptr<Simulation> simulation;
+		if (simulate) { // an emulated network: scans are on from the start, and can not leave it
+			simulation = std::make_shared<Simulation>(sim_seed, sim_networks, 0.03);
+			scan_deps = Simulation::deps(simulation);
+			policy.simulated = true;
+			policy.enabled = true;
+			policy.ceiling = sim_networks;
+			if (policy.scope.empty()) policy.scope = sim_networks;
+			if (policy.allowed_ports.empty()) policy.allowed_ports = simulation->allowed_ports;
+			policy.max_rate = 10000;
+			std::cerr << "proculus: SIMULATION: scans run on an emulated network (" << sim_networks << ", " << simulation->net.host_count() << " hosts); nothing is sent over the network\n";
+		}
+		ScanController scans(policy, &store, scan_deps); // validates the flags (first-run defaults)
 		if (scan_config.empty()) {
 			if (!store_dir.empty()) scan_config = (std::filesystem::path(store_dir) / "scan-config.json").string();
 			else if (!accounts_dir.empty()) scan_config = (std::filesystem::path(accounts_dir) / "scan-config.json").string();
