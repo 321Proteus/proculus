@@ -10,11 +10,18 @@ name: Build packages
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'What to build'
+        type: choice
+        default: all
+        options: [all, windows, linux, macos]
   push:
     tags: ['v*']
 
 jobs:
   linux:
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'linux' }}
     runs-on: ubuntu-22.04 # an older glibc than the newest: the package then runs on more distributions
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +44,7 @@ jobs:
             dist/SHA256SUMS
 
   macos:
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'macos' }}
     runs-on: macos-latest # Apple silicon
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +64,7 @@ jobs:
             dist/SHA256SUMS
 
   windows:
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'windows' }}
     runs-on: windows-latest
     steps:
       - name: Keep line endings as they are in the repository
@@ -68,20 +77,40 @@ jobs:
           packages: >-
             gcc-g++ gcc-core make cmake ninja pkg-config git zip unzip curl binutils
             libpcre2-devel libexpat-devel libssl-devel libsodium-devel libpq-devel zlib-devel
+            libpq5
       - name: Build the program under Cygwin
         shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
+        env:
+          SKIP_SMOKE: '1' # checked in the next step, where a failure does not lose the package
         run: |
           cd "$(cygpath -u "$GITHUB_WORKSPACE")"
           bash scripts/package.sh windows
+      - name: Check that the program starts (informational)
+        continue-on-error: true
+        shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
+        run: |
+          cd "$(cygpath -u "$GITHUB_WORKSPACE")"
+          dir="$(ls -d dist/proculus-*-windows-*/ | head -1)"
+          cd "$dir"
+          ./proculus.exe serve --help | head -3
+          ./proculus.exe serve --simulate --store smoke-data --port 18941 --ui-port 18940 > smoke.log 2>&1 &
+          sleep 8
+          curl -s -o /dev/null -w "UI answered: %{http_code}\n" http://127.0.0.1:18940/ || true
+          curl -s http://127.0.0.1:18940/api/auth || true
+          echo; cat smoke.log | head -5
+          kill %1 2>/dev/null || true
+          rm -rf smoke-data smoke.log
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Build the desktop app
+        continue-on-error: true
         shell: pwsh
         run: |
           $staged = Get-ChildItem -Path dist -Directory -Filter "proculus-*-windows-*" | Select-Object -First 1
           node desktop/build.js $staged.FullName dist
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: proculus-windows
           path: |

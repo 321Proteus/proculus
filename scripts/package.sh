@@ -135,7 +135,7 @@ package_macos() {
 	rm -rf "$deps"; mkdir -p "$deps/lib/pkgconfig"
 	local dirs=(/opt/local/lib /opt/local/libexec/openssl3/lib /opt/local/lib/postgresql* /opt/homebrew/lib /opt/homebrew/opt/openssl@3/lib /opt/homebrew/opt/libpq/lib /opt/homebrew/opt/expat/lib
 		/usr/local/lib /usr/local/opt/openssl@3/lib /usr/local/opt/libpq/lib /usr/local/opt/expat/lib)
-	local missing=""
+	local missing="" pq_lib_dir="" sodium_lib_dir=""
 	for lib in libpcre2-8 libexpat libsodium libz libssl libcrypto libpq libpgcommon libpgport; do
 		local found=""
 		for d in "${dirs[@]}"; do
@@ -145,6 +145,8 @@ package_macos() {
 			continue
 		fi
 		if [ -n "$found" ]; then ln -sf "$found" "$deps/lib/$lib.a"; else missing="$missing $lib"; fi
+		if [ "$lib" = libpq ] && [ -n "$found" ]; then pq_lib_dir="$(dirname "$found")"; fi
+		if [ "$lib" = libsodium ] && [ -n "$found" ]; then sodium_lib_dir="$(dirname "$found")"; fi
 	done
 	[ -z "$missing" ] || die "no static library for:$missing. MacPorts: sudo port install pcre2 expat libsodium openssl3 postgresql16 | Homebrew: brew install pcre2 expat libsodium openssl@3 libpq nlohmann-json"
 	for pc in libpcre2-8 libsodium; do
@@ -155,10 +157,19 @@ package_macos() {
 	done
 	local openssl_root
 	openssl_root="$(cd "$(dirname "$(readlink "$deps/lib/libssl.a" 2>/dev/null || echo "$deps/lib/libssl.a")")/.." && pwd)"
+	# Homebrew keeps libpq out of the default search path (keg-only): when its headers sit next to the library, say where
+	local pg_args=()
+	if [ -n "$pq_lib_dir" ] && [ -f "$pq_lib_dir/../include/libpq-fe.h" ]; then pg_args=(-DPostgreSQL_ROOT="$(cd "$pq_lib_dir/.." && pwd)"); fi
+	# libsodium is found through pkg-config (the .pc files above); also give CMake its prefix, in case that is a keg-only one
+	local prefixes=""
+	if [ -n "$sodium_lib_dir" ] && [ -f "$sodium_lib_dir/../include/sodium.h" ]; then prefixes="$(cd "$sodium_lib_dir/.." && pwd)"; fi
+	if [ -n "$prefixes" ]; then pg_args+=(-DCMAKE_PREFIX_PATH="$prefixes"); fi
+	echo "    static libraries in $deps/lib:"; ls "$deps/lib" | grep '\.a$' | sed 's/^/      /'
+	echo "    libpq from: ${pq_lib_dir:-?}   libsodium from: ${sodium_lib_dir:-?}   cmake args: ${pg_args[*]:-none}"
 	say "configuring (Release)"
 	PKG_CONFIG_PATH="$deps/lib/pkgconfig" cmake -S . -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DPROCULUS_REQUIRE_DB=ON \
 		-DCMAKE_LIBRARY_PATH="$deps/lib" -DOPENSSL_ROOT_DIR="$openssl_root" -DOPENSSL_USE_STATIC_LIBS=ON \
-		-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+		-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${pg_args[@]+"${pg_args[@]}"} \
 		-DCMAKE_CXX_STANDARD_LIBRARIES="-L$deps/lib -lpgcommon -lpgport -lssl -lcrypto -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -lkrb5support -lldap -llber -lresolv -lz" >/dev/null
 	say "building (this takes a few minutes)"
 	cmake --build "$b" --target gateway --parallel "$JOBS" 2>&1 | grep -v "warning: object file" | tail -3
