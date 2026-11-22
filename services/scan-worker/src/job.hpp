@@ -2,6 +2,7 @@
 #define PROCULUS_JOB_HPP
 
 #include <cstdint>
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -37,6 +38,9 @@ struct ScanJob {
 	int timing = 3; // nmap -T level, 0..4
 	bool version_detect = true;
 	bool privileged = false; // raw-socket scans (-sS, ICMP); needs root
+	// Services stage: asked for live progress. Called now and then with how far the port scan is and how
+	// far the service identification of the open ports is (both 0..1), from the thread that runs the scan.
+	std::function<void(double scanned, double identified)> on_progress;
 };
 
 // A job the worker refuses to run; what() says why.

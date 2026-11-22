@@ -113,6 +113,10 @@ NmapCommand build_command(
 		a.push_back("-Pn"); // hosts were already found by the discovery stage
 		a.push_back(job.privileged ? "-sS" : "-sT");
 		a.push_back("--open");
+		if (job.on_progress) { // nmap reports its progress as <taskprogress> elements
+			a.push_back("--stats-every");
+			a.push_back("1s");
+		}
 		a.push_back("-p");
 		a.push_back(port_arg);
 		if (job.version_detect) {

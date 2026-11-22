@@ -488,7 +488,7 @@ Json ScanController::status() const {
 			{"chunks_done", i.progress.chunks_done}, {"chunks_total", i.progress.chunks_total}, {"hosts_found", i.progress.hosts_found},
 			{"pauses", i.progress.pauses}, {"request", request_json(i.current)}};
 		Json recent = Json::array();
-		for (const LiveHost& h : i.progress.recent) recent.push_back({{"ip", h.ip}, {"ports", h.ports}});
+		for (const LiveHost& h : i.progress.recent) recent.push_back({{"ip", h.ip}, {"ports", h.ports}, {"ports_total", h.ports_total}, {"ports_done", h.ports_done}, {"explored", h.explored}});
 		j["current"]["recent_hosts"] = std::move(recent);
 	}
 	j["last"] = i.last;

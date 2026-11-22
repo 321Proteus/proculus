@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,8 @@ struct RunOptions {
 		<< 20; // bytes of stdout kept before the child is killed
 	std::atomic<bool>* cancel = nullptr; // set to true to abort the run
 	std::chrono::milliseconds kill_grace{ 2000 };
+	// Called after output arrived, with all of stdout so far (on the calling thread, so keep it short).
+	std::function<void(const std::string&)> on_output;
 };
 
 struct RunResult {

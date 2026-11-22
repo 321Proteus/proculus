@@ -108,6 +108,8 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  portProgress: 'Postęp skanowania portów', tipPortProgress: 'Ile portów tego hosta zostało już sprawdzonych (z listy portów skanu). W trakcie pracy nmapa to szacunek; po zakończeniu porcji jest dokładne.',
+  exploredTitle: 'Zbadane ciekawe porty', tipExplored: 'Otwarte porty (ciekawe), które zostały w pełni zbadane: rozpoznana usługa i, dla usług WWW, sprawdzenie sondą. Format: zbadane/otwarte.',
   exportBtn: 'Eksport…', exportTitle: 'Eksport w wybranym formacie', exportIntro: 'Napisz, jak ma wyglądać jedna linia dla każdej usługi (z bieżącymi filtrami). Kliknij nazwę pola, aby je wstawić.',
   exportRow: 'Szablon wiersza', exportHeader: 'Nagłówek (opcjonalnie)', exportFooter: 'Stopka (opcjonalnie)', exportUnique: 'Bez powtórzeń (np. tylko adresy IP)', exportFields: 'Pola',
   exportMods: 'Modyfikatory: |upper |lower |trim |csv |json |default:TEKST |max:N. Znaki specjalne: \\n \\t \\{ \\}. W nagłówku i stopce: {run} {count}.',
@@ -156,6 +158,8 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  portProgress: 'Port scan progress', tipPortProgress: 'How many of this host\'s ports (from the scan\'s port list) have been checked. An estimate while nmap is working, exact once its chunk is done.',
+  exploredTitle: 'Interesting ports explored', tipExplored: 'Open (interesting) ports that have been examined in full: service identified and, for web services, probed. Shown as explored/open.',
   exportBtn: 'Export…', exportTitle: 'Export in your own format', exportIntro: 'Write what one line should look like for every service (with the current filters). Click a field name to insert it.',
   exportRow: 'Row template', exportHeader: 'Header (optional)', exportFooter: 'Footer (optional)', exportUnique: 'No repeated lines (e.g. only the IPs)', exportFields: 'Fields',
   exportMods: 'Modifiers: |upper |lower |trim |csv |json |default:TEXT |max:N. Escapes: \\n \\t \\{ \\}. In header and footer: {run} {count}.',
@@ -454,8 +458,12 @@ function buildTelemetry() {
       const isLast = i === visible.length - 1 && running && (stage === 'discovery' || stage === 'services');
       let r = rows.get(h.ip);
       if (!r) {
-        r = { row: el('div', { class: 'live-host-row' }), key: null, shown: [], head: el('div', { style: 'display:flex;align-items:center;gap:8px' }), chips: el('div', { class: 'port-chips' }) };
-        r.row.append(r.head, r.chips);
+        r = { row: el('div', { class: 'live-host-row' }), key: null, shown: [], head: el('div', { style: 'display:flex;align-items:center;gap:8px' }), chips: el('div', { class: 'port-chips' }),
+          fill: el('i', {}), count: el('span', { class: 'host-count mono' }), expl: el('span', { class: 'host-expl mono' }) };
+        r.bar = el('div', { class: 'host-prog', 'aria-hidden': 'true' }, r.fill);
+        r.prog = tip(t('portProgress'), t('tipPortProgress'), el('div', { class: 'host-progress' }, r.bar, r.count));
+        r.expl = tip(t('exploredTitle'), t('tipExplored'), r.expl);
+        r.row.append(r.head, r.prog, r.expl, r.chips);
         rows.set(h.ip, r);
         list.append(r.row);
       }
@@ -471,6 +479,13 @@ function buildTelemetry() {
         r.row.classList.toggle('online-host', h.ports.length > 0 && !isLast);
         r.row.classList.toggle('active-host', isLast);
       }
+      // the bar and the counters change often: updated in place, every poll
+      const total = h.ports_total || 0, done = Math.min(h.ports_done || 0, total);
+      r.fill.style.width = (total ? Math.round(done / total * 1000) / 10 : 0) + '%';
+      r.bar.classList.toggle('done', total > 0 && done >= total);
+      r.count.textContent = total ? done + '/' + total : '—';
+      r.expl.textContent = h.ports.length ? '★ ' + Math.min(h.explored || 0, h.ports.length) + '/' + h.ports.length : '';
+      r.expl.classList.toggle('all', h.ports.length > 0 && (h.explored || 0) >= h.ports.length);
     });
     empty.hidden = visible.length > 0;
   }
@@ -513,7 +528,7 @@ function buildTelemetry() {
     vTime.textContent = (cur.elapsed_seconds || 0) + 's';
     vPauses.textContent = String(cur.pauses || 0);
     stopBtn.disabled = s.state !== 'running';
-    setHosts((cur.recent_hosts || []).slice(-4), running, cur.stage);
+    setHosts((cur.recent_hosts || []).slice(-6), running, cur.stage);
     setLog(s);
   }
   return { node, update, stopBtn };

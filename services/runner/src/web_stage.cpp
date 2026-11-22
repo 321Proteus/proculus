@@ -11,7 +11,8 @@
 namespace proculus {
 
 WebStageResult run_web_stage(RunRecord& run, const RunnerConfig& cfg, HttpTransport& transport, const sig::SignatureSet& signatures,
-	const std::map<std::string, std::string>& hostnames, const std::atomic<bool>& stop, std::ostream* log) {
+	const std::map<std::string, std::string>& hostnames, const std::atomic<bool>& stop, std::ostream* log,
+	const std::function<void(const std::string& ip, uint16_t port)>& on_probed) {
 	WebStageResult out;
 
 	struct Task {
@@ -60,9 +61,11 @@ WebStageResult run_web_stage(RunRecord& run, const RunnerConfig& cfg, HttpTransp
 					out.detections += found.size();
 					run.hosts[t.host].services[t.service].web = to_web_record(o, found); // each task owns its element
 				}
+				if (on_probed) on_probed(t.target.ip, t.target.port);
 			} catch (const ProbeRefused& e) {
 				std::lock_guard<std::mutex> lock(m);
 				out.warnings.push_back(t.target.ip + ":" + std::to_string(t.target.port) + " not probed: " + e.what());
+				if (on_probed) on_probed(t.target.ip, t.target.port);
 			}
 		}
 	};

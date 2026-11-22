@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include <cassert>
+#include <iostream>
 #include <filesystem>
 #include <mutex>
 #include <set>
@@ -403,6 +404,14 @@ static void test_web_stage() {
 	deps.transport = &transport;
 	deps.deadline_watchdog = false;
 	deps.make_backend = [&](std::atomic<bool>&) { return std::make_unique<SimBackend>(net); };
+	std::mutex pm;
+	ScanProgress last;
+	size_t web_updates = 0;
+	deps.on_progress = [&](const ScanProgress& p) {
+		std::lock_guard<std::mutex> l(pm);
+		if (p.stage == "web") web_updates++;
+		last = p;
+	};
 
 	RunnerConfig cfg = base_config(networks);
 	cfg.web.enabled = true;
@@ -426,6 +435,11 @@ static void test_web_stage() {
 			for (const auto& [name, value] : s.web->headers) assert(value.find("secret-value") == std::string::npos); // cookie values stay out of the run
 		}
 	assert(with_web == r.web_responding);
+	{ // web services count as explored once probed, the others once identified
+		std::lock_guard<std::mutex> l(pm);
+		assert(web_updates > 1);
+		for (const LiveHost& h : last.recent) assert(h.explored == static_cast<int>(h.ports.size()) && h.ports_done == h.ports_total);
+	}
 }
 
 static void test_progress_reporting() {
@@ -455,10 +469,23 @@ static void test_progress_reporting() {
 	bool ports_seen = false;
 	for (const ScanProgress& p : seen) {
 		most = std::max(most, p.recent.size());
-		assert(p.recent.size() <= 8 && p.chunks_done <= p.chunks_total);
-		for (const LiveHost& h : p.recent) ports_seen |= !h.ports.empty();
+		assert(p.recent.size() <= 16 && p.chunks_done <= p.chunks_total);
+		for (const LiveHost& h : p.recent) {
+			ports_seen |= !h.ports.empty();
+			assert(h.ports_done >= 0 && h.ports_done <= h.ports_total && h.explored >= 0 && h.explored <= static_cast<int>(h.ports.size()));
+		}
 	}
-	assert(most == 8 && ports_seen);            // a live view of the latest hosts, with the ports found on them
+	assert(most == 16 && ports_seen);           // a live view of the latest hosts, with the ports found on them
+	// per-host progress: a host starts its services scan at 0 of the ports and ends with all of them scanned,
+	// and every open port counts as explored (no web stage here)
+	bool started = false;
+	for (const ScanProgress& p : seen)
+		for (const LiveHost& h : p.recent) started |= h.ports_total > 0 && h.ports_done == 0 && p.stage == "services";
+	assert(started);
+	for (const LiveHost& h : seen.back().recent) {
+		if (!(h.ports_total > 0 && h.ports_done == h.ports_total && h.explored == static_cast<int>(h.ports.size()))) std::cerr << h.ip << " total=" << h.ports_total << " done=" << h.ports_done << " explored=" << h.explored << " open=" << h.ports.size() << "\n";
+		assert(h.ports_total > 0 && h.ports_done == h.ports_total && h.explored == static_cast<int>(h.ports.size()));
+	}
 	assert(seen.back().hosts_found == r.live_hosts);
 }
 

@@ -102,12 +102,15 @@ struct RunAborted : std::runtime_error {
 // callback runs on a worker thread, under a lock, so it must return quickly.
 struct LiveHost {
 	std::string ip;
-	std::vector<int> ports; // open ports found so far (the services stage fills them in)
+	std::vector<int> ports; // open ports found so far, the "interesting" ones (the services stage fills them in)
+	int ports_total = 0;    // ports the services stage scans on this host
+	int ports_done = 0;     // how many of them are scanned so far (an estimate while nmap is working, exact when it is done)
+	int explored = 0;       // open ports examined in full: identified, and for web services probed too
 };
 
 struct ScanProgress {
 	std::string stage;         // starting, waiting for the window, discovery, services, web, saving, done
-	std::vector<LiveHost> recent; // the most recent hosts that answered (at most 8), oldest first, for a live view
+	std::vector<LiveHost> recent; // the most recent hosts that answered (at most 16), oldest first, for a live view
 	size_t chunks_done = 0;    // in the current stage
 	size_t chunks_total = 0;   // grows when a chunk is split
 	size_t hosts_found = 0;

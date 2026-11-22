@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "proculus/netutil/ipset.hpp"
+#include "proculus/netutil/portset.hpp"
 #include "proculus/sig/builtin.hpp"
 #include "socket_transport_include.hpp"
 #include "web_stage.hpp"
@@ -80,12 +81,21 @@ struct Runner::Impl {
 	void note_host(const std::string& ip, const std::vector<int>& ports = {}) {
 		auto it = std::find_if(prog.recent.begin(), prog.recent.end(), [&](const LiveHost& h) { return h.ip == ip; });
 		if (it == prog.recent.end()) {
-			prog.recent.push_back({ip, ports});
-			if (prog.recent.size() > 8) prog.recent.erase(prog.recent.begin());
+			LiveHost h;
+			h.ip = ip;
+			h.ports = ports;
+			prog.recent.push_back(std::move(h));
+			if (prog.recent.size() > 16) prog.recent.erase(prog.recent.begin());
 		} else if (!ports.empty()) {
 			it->ports = ports;
 		}
 	}
+	// the live entry of a host, or null when it has already scrolled out of the short list
+	LiveHost* live_host(const std::string& ip) {
+		auto it = std::find_if(prog.recent.begin(), prog.recent.end(), [&](const LiveHost& h) { return h.ip == ip; });
+		return it == prog.recent.end() ? nullptr : &*it;
+	}
+	std::mutex web_progress_m; // the web stage reports from several threads
 	void emit() {
 		if (deps.on_progress) deps.on_progress(prog);
 	}
@@ -182,7 +192,9 @@ struct Runner::Impl {
 
 	// ---- one stage: scan all chunks with the worker pool
 
-	StageStats run_stage(Stage stage, std::vector<Chunk> chunks, RateEstimator& rate, const std::function<void(const NmapResult&)>& collect) {
+	// `hosts_of` (services stage) names the hosts of a chunk, so their port progress can be shown while nmap works.
+	StageStats run_stage(Stage stage, std::vector<Chunk> chunks, RateEstimator& rate, const std::function<void(const NmapResult&)>& collect,
+		const std::function<std::vector<std::string>(const Chunk&)>& hosts_of = {}) {
 		struct Item {
 			Chunk chunk;
 			int attempts = 0; // failed runs (not cancellations)
@@ -248,14 +260,47 @@ struct Runner::Impl {
 					}
 
 					try {
-						const ScanJob job = job_for(item.chunk);
+						ScanJob job = job_for(item.chunk);
+						std::vector<std::string> chunk_hosts;
+						if (stage == Stage::Services && hosts_of) chunk_hosts = hosts_of(item.chunk);
 						const NmapCommand cmd = build_command(job, limits(), cfg.nmap_path); // the scope / port / rate gate
-						const NmapResult result = backend->run(cmd, job);
+						int ports_total = 0;
+						if (!chunk_hosts.empty()) {
+							PortSet scanned_ports;
+							scanned_ports.add_list(cmd.ports);
+							ports_total = static_cast<int>(std::min<uint32_t>(scanned_ports.count(), 65536));
+							{
+								std::lock_guard<std::mutex> lock(m);
+								for (const std::string& ip : chunk_hosts) {
+									note_host(ip);
+									if (LiveHost* h = live_host(ip)) {
+										h->ports_total = ports_total;
+										h->ports_done = 0;
+									}
+								}
+								emit();
+							}
+							job.on_progress = [this, &m, chunk_hosts, ports_total](double scanned, double) {
+								std::lock_guard<std::mutex> lock(m);
+								for (const std::string& ip : chunk_hosts)
+									if (LiveHost* h = live_host(ip)) h->ports_done = static_cast<int>(scanned * ports_total + 0.5);
+								emit();
+							};
+						}
+						const NmapCommand cmd2 = chunk_hosts.empty() ? cmd : build_command(job, limits(), cfg.nmap_path); // same command plus --stats-every
+						const NmapResult result = backend->run(cmd2, job);
 						std::lock_guard<std::mutex> lock(m);
 						if (result.elapsed_seconds > 0) rate.record(item.chunk.count, result.elapsed_seconds);
 						stats.chunks++;
 						stats.addresses += item.chunk.count;
 						collect(result);
+						for (const std::string& ip : chunk_hosts) { // the chunk is finished: every port of its hosts has been scanned
+							LiveHost* h = live_host(ip);
+							if (!h) continue;
+							if (h->ports_total == 0) h->ports_total = ports_total; // re-added by collect() after scrolling out of the list
+							h->ports_done = h->ports_total;
+							h->explored = std::min<int>(h->explored, static_cast<int>(h->ports.size()));
+						}
 						prog.chunks_done++;
 						prog.pauses = pauses;
 						emit();
@@ -486,6 +531,12 @@ RoundReport Runner::run_round() {
 				for (const PortResult& p : h.ports)
 					if (p.state == "open") open_ports.push_back(p.port);
 				s.note_host(h.address, open_ports);
+				if (LiveHost* lh = s.live_host(h.address)) { // open ports that need no web probing are examined once nmap has identified them
+					int web = 0;
+					for (const PortResult& p : h.ports)
+						if (p.state == "open" && web_service_scheme(p.service.name, static_cast<uint16_t>(p.port))) web++;
+					lh->explored = s.cfg.web.enabled ? static_cast<int>(open_ports.size()) - web : static_cast<int>(open_ports.size());
+				}
 				for (const PortResult& p : h.ports) {
 					if (p.state != "open") continue;
 					ServiceRecord sv;
@@ -500,6 +551,13 @@ RoundReport Runner::run_round() {
 					it->second.services.push_back(std::move(sv));
 				}
 			}
+		}, [&](const Chunk& c) { // the hosts of a chunk: the live addresses inside its CIDRs
+			IpSet inside;
+			inside.add_list(c.cidrs);
+			std::vector<std::string> names;
+			for (uint32_t ip : live)
+				if (inside.contains(ip)) names.push_back(ip_text(ip));
+			return names;
 		}));
 	}
 
@@ -518,7 +576,12 @@ RoundReport Runner::run_round() {
 	// ---- stage 3: web probing, with signatures
 	if (s.cfg.web.enabled) {
 		s.set_stage("web");
-		const WebStageResult w = run_web_stage(run, s.cfg, *s.deps.transport, s.signatures, hostnames, s.stop, s.deps.log);
+		const WebStageResult w = run_web_stage(run, s.cfg, *s.deps.transport, s.signatures, hostnames, s.stop, s.deps.log, [&s](const std::string& ip, uint16_t) {
+			std::lock_guard<std::mutex> lock(s.web_progress_m);
+			if (LiveHost* h = s.live_host(ip))
+				if (h->explored < static_cast<int>(h->ports.size())) h->explored++;
+			s.emit();
+		});
 		report.web_probed = w.probed;
 		report.web_responding = w.responding;
 		report.detections = w.detections;

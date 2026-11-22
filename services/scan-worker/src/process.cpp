@@ -125,9 +125,12 @@ RunResult run_process(
 		if (err_open) fds[n++] = { err_pipe[0], POLLIN, 0 };
 		int rc = poll(fds, static_cast<nfds_t>(n), 100);
 		if (rc < 0 && errno != EINTR) break;
-		if (out_open)
+		if (out_open) {
+			const size_t before = res.out.size();
 			out_open = drain(
 				out_pipe[0], res.out, opts.max_output, &res.output_truncated);
+			if (opts.on_output && res.out.size() != before) opts.on_output(res.out);
+		}
 		if (err_open) err_open = drain(err_pipe[0], res.err, 1u << 20, nullptr);
 	}
 	close(out_pipe[0]);
