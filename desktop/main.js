@@ -14,7 +14,7 @@ if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox'); //
 
 // the first-run setup token is generated here and given to the server and to the page (see preload.js)
 const setupToken = crypto.randomBytes(16).toString('hex');
-let server = null, win = null, uiPort = 0, quitting = false, restarting = false, output = [];
+let server = null, win = null, uiPort = 0, quitting = false, restarting = false, output = [], nmapPath = null, nmapWarned = false;
 let simulate = process.argv.includes('--simulate') || process.env.PROCULUS_SIMULATE === '1';
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -29,6 +29,20 @@ function serverPath() {
 	if (process.env.PROCULUS_BIN) return process.env.PROCULUS_BIN;
 	const base = app.isPackaged ? path.join(process.resourcesPath, 'server') : path.join(__dirname, 'server');
 	return path.join(base, isWin ? 'proculus.exe' : 'proculus');
+}
+
+// An application opened from Finder / the Start menu gets a minimal PATH (no /opt/local/bin, no /opt/homebrew/bin), so
+// nmap is looked for in the usual install locations as well; its full path is given to the program.
+function findNmap() {
+	const exe = isWin ? 'nmap.exe' : 'nmap';
+	const extra = isWin ? ['C:\\Program Files (x86)\\Nmap', 'C:\\Program Files\\Nmap']
+		: ['/opt/local/bin', '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/snap/bin', '/usr/local/sbin', '/opt/local/sbin'];
+	for (const dir of (process.env.PATH || '').split(path.delimiter).concat(extra)) {
+		if (!dir) continue;
+		const candidate = path.join(dir, exe);
+		try { fs.accessSync(candidate, fs.constants.X_OK); if (fs.statSync(candidate).isFile()) return candidate; } catch (e) { /* not here */ }
+	}
+	return null;
 }
 
 function freePort() {
@@ -56,8 +70,12 @@ async function startServer() {
 	const apiPort = await freePort();
 	uiPort = await freePort();
 	const args = ['serve', '--store', dataDir, '--port', String(apiPort), '--ui-port', String(uiPort)];
+	nmapPath = simulate ? null : findNmap();
 	if (simulate) args.push('--simulate');
-	else args.push('--scan-ceiling', '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16');
+	else {
+		args.push('--scan-ceiling', '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16');
+		if (nmapPath) args.push('--scan-nmap', nmapPath);
+	}
 	output = [];
 	server = spawn(bin, args, { cwd: dataDir, windowsHide: true, env: Object.assign({}, process.env, { PROCULUS_SETUP_TOKEN: setupToken }) });
 	const keep = (chunk) => { output.push(...chunk.toString().split(/\r?\n/).filter(Boolean)); output = output.slice(-30); };
@@ -107,6 +125,15 @@ async function load() {
 		return;
 	}
 	if (win) win.loadURL('http://127.0.0.1:' + uiPort + '/');
+	if (!simulate && !nmapPath && !nmapWarned && win) { // real scans cannot work without nmap: say so once, and offer the simulation
+		nmapWarned = true;
+		const choice = await dialog.showMessageBox(win, {
+			type: 'warning', title: 'nmap not found', buttons: ['Continue', 'Use the simulation'], defaultId: 0, cancelId: 0,
+			message: 'nmap was not found on this computer.',
+			detail: 'Real scans need nmap (https://nmap.org/download). The simulation (an emulated network) works without it and can be switched on in the Proculus menu at any time.',
+		});
+		if (choice.response === 1) switchMode(true);
+	}
 }
 
 function createWindow() {

@@ -1,0 +1,90 @@
+# Builds the Proculus packages for Linux, macOS and Windows, each on a machine of its own kind, and keeps them as downloads.
+#
+#   GitHub > Actions > "Build packages" > Run workflow     (or push a tag such as v0.1.0)
+#   When it is green, open the run and download the artifacts at the bottom:
+#     proculus-linux    the command-line package (.tar.gz) and the desktop app (.AppImage)
+#     proculus-macos    the same for macOS on Apple silicon: the package (.tar.gz) and the desktop app (.zip with Proculus.app)
+#     proculus-windows  the command-line package (.zip) and the desktop app (...-portable.exe: double-click it)
+# Nothing has to be installed on the machine that downloads them.
+name: Build packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04 # an older glibc than the newest: the package then runs on more distributions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the build tools and libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config binutils curl git libfuse2 \
+            libssl-dev libsodium-dev libpq-dev libpcre2-dev libexpat1-dev zlib1g-dev
+      - name: Build the package and the desktop app
+        run: scripts/package.sh app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proculus-linux
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
+            dist/SHA256SUMS
+
+  macos:
+    runs-on: macos-14 # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the build tools and libraries
+        run: brew install cmake ninja pkg-config nlohmann-json libsodium pcre2 expat openssl@3 libpq
+      - name: Build the package and the desktop app
+        run: scripts/package.sh app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proculus-macos
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Keep line endings as they are in the repository
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      # The program uses POSIX calls (fork, poll, process groups), so on Windows it is built under Cygwin. This happens on
+      # the GitHub machine: nobody has to install Cygwin.
+      - uses: cygwin/cygwin-install-action@v4
+        with:
+          packages: >-
+            gcc-g++ gcc-core make cmake ninja pkg-config git zip unzip curl binutils
+            libpcre2-devel libexpat-devel libssl-devel libsodium-devel libpq-devel zlib-devel
+      - name: Build the program under Cygwin
+        shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
+        run: |
+          cd "$(cygpath -u "$GITHUB_WORKSPACE")"
+          bash scripts/package.sh windows
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build the desktop app
+        shell: pwsh
+        run: |
+          $staged = Get-ChildItem -Path dist -Directory -Filter "proculus-*-windows-*" | Select-Object -First 1
+          node desktop/build.js $staged.FullName dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proculus-windows
+          path: |
+            dist/*.zip
+            dist/*-portable.exe
+            dist/SHA256SUMS

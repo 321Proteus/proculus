@@ -132,32 +132,43 @@ work, but only as first-run defaults until the settings file exists. Without log
 (`--no-auth`) there is nobody to answer for a change, so the settings can only come
 from those flags.
 
-**Packaging (standalone program for macOS, Linux, Windows).** Each platform is built natively, on
-that platform, with one command. The result is one self-contained program, `proculus` (API, web UI,
-simulation and the command-line tools in a single file; the UI and the built-in signatures are inside),
-with launchers (`start.sh` and `start-simulation.sh`, or the `.cmd` versions), a README and examples,
-archived into `dist/` with a `SHA256SUMS` file. Each package is started on an emulated network and must
-serve the UI and accept the first-run setup before it is archived (`SKIP_SMOKE=1` to skip).
+**Packaging (standalone program and desktop app for macOS, Linux, Windows).** The builds happen on real
+machines of each kind, so nothing has to be installed on the machine that wants the result:
 
-| On | Run | Result |
+* **GitHub Actions (the easy way, and the only one for Windows).** On GitHub: *Actions → Build packages →
+  Run workflow* (or push a tag such as `v0.1.0`). `.github/workflows/build.yml` builds Linux, macOS (Apple
+  silicon) and Windows in parallel; when it is green, download the artifacts at the bottom of the run:
+  `proculus-linux`, `proculus-macos`, `proculus-windows`.
+* **By hand, on that platform:** `scripts/package.sh macos`, `scripts/package.sh linux` (the command-line
+  package), or `scripts/package.sh app` (the same, plus the desktop app; macOS and Linux). Each package is
+  started on an emulated network and must serve the UI and accept the first-run setup before it is archived
+  (`SKIP_SMOKE=1` to skip). The workflow runs exactly these scripts.
+
+What comes out (`dist/`):
+
+| Platform | Command-line package | Desktop app (double-click, no browser) |
 |---|---|---|
-| macOS | `scripts/package.sh macos` | `dist/proculus-<version>-macos-<arch>.tar.gz`; the third-party libraries are linked in, only system libraries are needed (checked). Needs MacPorts or Homebrew packages with static libraries (the script says which). Build on an Apple-silicon Mac for an arm64 package |
-| Linux | `scripts/package.sh linux` | `dist/proculus-<version>-linux-<arch>.tar.gz`; the program plus the shared libraries it needs in `lib/` (found through `$ORIGIN/lib`). Only glibc is not bundled, so it runs on the distribution it was built on and newer ones: build on the oldest one you support. Needs `build-essential cmake ninja-build pkg-config nlohmann-json3-dev libssl-dev libsodium-dev libpq-dev libpcre2-dev libexpat1-dev zlib1g-dev` (Debian/Ubuntu) |
-| Windows | `powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1` | `dist\proculus-<version>-windows-<arch>.zip`; built under Cygwin (the program uses POSIX calls), which the script installs; the few Cygwin DLLs are bundled next to `proculus.exe`. The whole output is also in `dist\windows-build.log` |
+| macOS | `proculus-<version>-macos-<arch>.tar.gz` | `Proculus-<version>-mac-<arch>.zip` (holds `Proculus.app`) |
+| Linux | `proculus-<version>-linux-<arch>.tar.gz` | `Proculus-<version>-linux-<arch>.AppImage` |
+| Windows | `proculus-<version>-windows-<arch>.zip` | `Proculus-<version>-windows-<arch>-portable.exe` |
 
-**Desktop application (double-click, no browser).** `scripts/package.sh app` (macOS, Linux) and
-`scripts\package-windows.ps1` (Windows, after the Cygwin step) wrap the package above into an
-[Electron](https://www.electronjs.org/) application (`desktop/`): double-clicking it opens Proculus in a
-window of its own. The application starts the bundled `proculus` program on free loopback ports, generates the
-first-run setup token itself and fills it in (nothing to copy from a terminal), keeps its data in the user's
-application-data folder, and stops the program when the window closes. The Proculus menu switches to the
-simulation (emulated network) and opens the data folder. Needs Node.js 18+ on the build machine; the
-result is `Proculus-<version>-mac-<arch>.zip` (holds `Proculus.app`), `...-linux-<arch>.AppImage` or
-`...-windows-<arch>-portable.exe`, all unsigned (macOS: right-click > Open the first time, or
-`xattr -dr com.apple.quarantine Proculus.app`; Windows: SmartScreen > More info > Run anyway).
-Run it from a checkout with `cd desktop && npm install && PROCULUS_BIN=<path to proculus> npm start`.
+The command-line package is one program, `proculus` (API, web UI, simulation and the command-line tools in a
+single file; the UI and the built-in signatures are inside), with launchers (`start.sh` and
+`start-simulation.sh`, or the `.cmd` versions), a README and examples. On macOS the third-party libraries are
+linked in and only system libraries are needed (checked); on Linux the shared libraries it needs are bundled in
+`lib/` (only glibc is not, so build on the oldest distribution you support); on Windows the program is built
+under Cygwin (it uses POSIX calls) and the few Cygwin DLLs sit next to `proculus.exe`.
 
-Real scans need nmap on the machine that runs the package; the simulation needs nothing.
+The **desktop app** is an [Electron](https://www.electronjs.org/) application (`desktop/`) around that program:
+double-clicking it opens Proculus in a window of its own. It starts the bundled program on free loopback ports,
+generates the first-run setup token itself and fills it in (nothing to copy from a terminal), looks for nmap in
+the usual install places (an app opened from Finder or the Start menu gets a minimal `PATH`), keeps its data in
+the user's application-data folder, and stops the program when the window closes. The Proculus menu switches to
+the simulation (emulated network) and opens the data folder. All of it is unsigned (macOS: right-click > Open the
+first time, or `xattr -dr com.apple.quarantine Proculus.app`; Windows: SmartScreen > More info > Run anyway).
+From a checkout: `cd desktop && npm install && PROCULUS_BIN=<path to proculus> npm start`.
+
+Real scans need nmap on the machine that runs the program; the simulation needs nothing.
 
 **Simulation.** `gateway serve --simulate --store results-sim` runs the whole system on an
 emulated network (`--sim-networks`, `--sim-seed`): scans from the UI go through the real

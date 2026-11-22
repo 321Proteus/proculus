@@ -4,10 +4,10 @@
 #
 #   scripts/package.sh macos      on a Mac:    third-party libraries linked in, only system libraries needed -> dist/proculus-<version>-macos-<arch>.tar.gz
 #   scripts/package.sh linux      on Linux:    system libraries bundled next to the program (lib/)            -> dist/proculus-<version>-linux-<arch>.tar.gz
-#   scripts/package.sh windows    in Cygwin:   (scripts/package-windows.ps1 sets that up and calls this)      -> dist/proculus-<version>-windows-<arch>.zip
+#   scripts/package.sh windows    in Cygwin:   what the GitHub Actions workflow (.github/workflows/build.yml) runs for Windows -> dist/proculus-<version>-windows-<arch>.zip
 #   scripts/package.sh app        macOS or Linux: the above for this machine, then a DESKTOP APPLICATION around it (Electron): double-click
 #                                 and Proculus opens in a window of its own, no browser -> dist/Proculus-<version>-mac-<arch>.zip (holds Proculus.app) or Proculus-<version>-linux-<arch>.AppImage
-#                                 (needs Node.js 18+; the first time it downloads Electron). Windows: scripts\package-windows.ps1 does it.
+#                                 (needs Node.js 18+; the first time it downloads Electron). Windows: the GitHub Actions workflow builds it.
 #   scripts/package.sh            the one that fits this machine (the command-line package)
 #
 # Each target builds in a directory of its own (build-package-<target>/), so it never disturbs your normal build/.
@@ -104,6 +104,25 @@ smoke() {
 	say "smoke test passed: UI 200, first-run setup works"
 }
 
+# nlohmann/json 3.11 is header-only; older distributions ship 3.10, and Cygwin may not offer it: fetch it if CMake cannot find 3.11.
+# Sets NLOHMANN_ARGS (extra cmake arguments).
+ensure_nlohmann() {
+	local work="$1" prefix="$1/deps"
+	NLOHMANN_ARGS=()
+	# probe with a real (tiny) project: script mode (cmake -P) does not search the system prefixes the way a configure does
+	mkdir -p "$work/probe"
+	printf 'cmake_minimum_required(VERSION 3.16)\nproject(probe NONE)\nfind_package(nlohmann_json 3.11 REQUIRED)\n' > "$work/probe/CMakeLists.txt"
+	if cmake -S "$work/probe" -B "$work/probe/build" >/dev/null 2>&1; then return 0; fi
+	if [ ! -f "$prefix/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake" ]; then
+		say "fetching nlohmann/json 3.11.3 (header-only)"
+		need git "needed to fetch nlohmann/json"
+		rm -rf "$prefix-src"; git -c advice.detachedHead=false clone --quiet --depth 1 --branch v3.11.3 https://github.com/nlohmann/json "$prefix-src"
+		cmake -S "$prefix-src" -B "$prefix-src/build" -G Ninja -DJSON_BuildTests=OFF -DCMAKE_INSTALL_PREFIX="$prefix" >/dev/null
+		cmake --install "$prefix-src/build" >/dev/null
+	fi
+	NLOHMANN_ARGS=(-DCMAKE_PREFIX_PATH="$prefix")
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 package_macos() {
 	[ "$(uname -s)" = Darwin ] || die "the macos package must be built on a Mac"
@@ -114,8 +133,8 @@ package_macos() {
 	deps="$b/static-deps"
 	say "macOS $arch: collecting static libraries (a directory with only .a files, so the linker cannot pick a .dylib)"
 	rm -rf "$deps"; mkdir -p "$deps/lib/pkgconfig"
-	local dirs=(/opt/local/lib /opt/local/libexec/openssl3/lib /opt/local/lib/postgresql* /opt/homebrew/lib /opt/homebrew/opt/openssl@3/lib /opt/homebrew/opt/libpq/lib
-		/usr/local/lib /usr/local/opt/openssl@3/lib /usr/local/opt/libpq/lib)
+	local dirs=(/opt/local/lib /opt/local/libexec/openssl3/lib /opt/local/lib/postgresql* /opt/homebrew/lib /opt/homebrew/opt/openssl@3/lib /opt/homebrew/opt/libpq/lib /opt/homebrew/opt/expat/lib
+		/usr/local/lib /usr/local/opt/openssl@3/lib /usr/local/opt/libpq/lib /usr/local/opt/expat/lib)
 	local missing=""
 	for lib in libpcre2-8 libexpat libsodium libz libssl libcrypto libpq libpgcommon libpgport; do
 		local found=""
@@ -140,7 +159,7 @@ package_macos() {
 	PKG_CONFIG_PATH="$deps/lib/pkgconfig" cmake -S . -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DPROCULUS_REQUIRE_DB=ON \
 		-DCMAKE_LIBRARY_PATH="$deps/lib" -DOPENSSL_ROOT_DIR="$openssl_root" -DOPENSSL_USE_STATIC_LIBS=ON \
 		-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
-		-DCMAKE_CXX_STANDARD_LIBRARIES="-L$deps/lib -lpgcommon -lpgport -lssl -lcrypto -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -lkrb5support -lresolv -lz" >/dev/null
+		-DCMAKE_CXX_STANDARD_LIBRARIES="-L$deps/lib -lpgcommon -lpgport -lssl -lcrypto -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -lkrb5support -lldap -llber -lresolv -lz" >/dev/null
 	say "building (this takes a few minutes)"
 	cmake --build "$b" --target gateway --parallel "$JOBS" 2>&1 | grep -v "warning: object file" | tail -3
 	local bin="$b/services/gateway/gateway"
@@ -167,11 +186,13 @@ package_linux() {
 	[ -z "$missing" ] || die "missing development libraries (pkg-config cannot find:$missing). Debian/Ubuntu: sudo apt install nlohmann-json3-dev libssl-dev libsodium-dev libpq-dev libpcre2-dev libexpat1-dev zlib1g-dev | Fedora: sudo dnf install json-devel openssl-devel libsodium-devel libpq-devel pcre2-devel expat-devel zlib-devel"
 	local b="$ROOT/build-package-linux" arch
 	arch="$(uname -m)"
+	mkdir -p "$b"
+	ensure_nlohmann "$b"
 	say "Linux $arch: configuring (Release)"
 	# libstdc++ and libgcc are linked in; the other libraries are bundled below. --disable-new-dtags makes the $ORIGIN/lib
 	# search path an RPATH, which (unlike RUNPATH) also applies to the bundled libraries' own dependencies.
 	cmake -S . -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DPROCULUS_REQUIRE_DB=ON \
-		-DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc -Wl,--disable-new-dtags -Wl,-rpath,'\$ORIGIN/lib'" 2>&1 | tail -5
+		-DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc -Wl,--disable-new-dtags -Wl,-rpath,'\$ORIGIN/lib'" "${NLOHMANN_ARGS[@]}" 2>&1 | tail -5
 	say "building (this takes a few minutes)"
 	cmake --build "$b" --target gateway --parallel "$JOBS" 2>&1 | tail -3
 	local bin="$b/services/gateway/gateway"
@@ -194,29 +215,19 @@ package_linux() {
 }
 
 package_windows() {
-	case "$(uname -s)" in CYGWIN*|MSYS*|MINGW*) ;; *) die "the windows package is built inside Cygwin: run scripts/package-windows.ps1 on a Windows machine" ;; esac
+	case "$(uname -s)" in CYGWIN*|MSYS*|MINGW*) ;; *) die "the windows package is built inside Cygwin; the GitHub Actions workflow (.github/workflows/build.yml) does that" ;; esac
 	need cmake "install it in Cygwin"; need ninja "install it in Cygwin"; need zip "install it in Cygwin"; need pkg-config "install it in Cygwin"
 	local b="$ROOT/build-package-windows" arch
 	arch="$(uname -m)"
 	local m missing=""
 	for m in libpcre2-8 libsodium libpq expat openssl; do pkg-config --exists "$m" 2>/dev/null || missing="$missing $m"; done
-	[ -z "$missing" ] || die "Cygwin is missing the development packages for:$missing (re-run scripts/package-windows.ps1 without -SkipInstall, or install libpcre2-devel libsodium-devel libpq-devel libexpat-devel libssl-devel with Cygwin's setup)"
-	# nlohmann-json is a header-only library that Cygwin may not offer: fetch it if CMake cannot find it
-	local prefix="$ROOT/build-package-windows/deps" nlohmann_args=()
-	if ! echo 'find_package(nlohmann_json 3.11 REQUIRED)' > /tmp/nl-probe.cmake || ! cmake -P /tmp/nl-probe.cmake >/dev/null 2>&1; then
-		if [ ! -f "$prefix/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake" ]; then
-			say "fetching nlohmann/json 3.11.3 (header-only)"
-			need git "install it in Cygwin"
-			rm -rf "$prefix-src"; git clone --quiet --depth 1 --branch v3.11.3 https://github.com/nlohmann/json "$prefix-src"
-			cmake -S "$prefix-src" -B "$prefix-src/build" -G Ninja -DJSON_BuildTests=OFF -DCMAKE_INSTALL_PREFIX="$prefix" >/dev/null
-			cmake --install "$prefix-src/build" >/dev/null
-		fi
-		nlohmann_args=(-DCMAKE_PREFIX_PATH="$prefix")
-	fi
+	[ -z "$missing" ] || die "Cygwin is missing the development packages for:$missing (install libpcre2-devel libsodium-devel libpq-devel libexpat-devel libssl-devel with Cygwin's setup)"
+	mkdir -p "$b"
+	ensure_nlohmann "$b"
 	say "configuring (Release)"
 	# -D_GNU_SOURCE: in strict C11/C++17 mode Cygwin hides POSIX declarations that glibc shows (fork, strdup, ...)
 	cmake -S . -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DPROCULUS_REQUIRE_DB=ON \
-		-DCMAKE_C_FLAGS=-D_GNU_SOURCE -DCMAKE_CXX_FLAGS=-D_GNU_SOURCE "${nlohmann_args[@]}" 2>&1 | tail -15
+		-DCMAKE_C_FLAGS=-D_GNU_SOURCE -DCMAKE_CXX_FLAGS=-D_GNU_SOURCE "${NLOHMANN_ARGS[@]}" 2>&1 | tail -15
 	say "building (this takes a few minutes)"
 	cmake --build "$b" --target gateway --parallel "$JOBS" 2>&1 | tail -15
 	local bin="$b/services/gateway/gateway.exe"
@@ -240,7 +251,7 @@ package_app() {
 	case "$(uname -s)" in
 		Darwin) package_macos ;;
 		Linux) package_linux ;;
-		*) die "on Windows run scripts\\package-windows.ps1" ;;
+		*) die "the Windows build runs in GitHub Actions (.github/workflows/build.yml)" ;;
 	esac
 	say "wrapping it into a desktop application (Electron; the first time this downloads Electron, about 100 MB)"
 	node "$ROOT/desktop/build.js" "$STAGED_DIR" "$DIST"
