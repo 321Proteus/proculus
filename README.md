@@ -101,8 +101,8 @@ telemetry on the first tab. Differences are deliberate: the live panels are upda
 of being rebuilt (no flicker; the log keeps its scroll position unless you are at the bottom), the
 guided tour ("Przewodnik") measures its target only after the smooth scroll has stopped and is
 repositioned on resize, tooltips appear at the pointer, status dots actually pulse, and all motion
-is off for users who prefer reduced motion. Tabs 4-5 (custom signatures, schedule and
-DefectDojo) are placeholders for now.
+is off for users who prefer reduced motion. Tab 5 (schedule and DefectDojo) is a placeholder
+for now.
 
 A dashboard over the saved runs (Polish or English): size of the latest run and
 what changed since the previous one, services ranked by priority with the
@@ -139,6 +139,27 @@ controller, planner, runner and web stage, but the hosts, services and web serve
 emulated network, the header shows a SIMULATION badge, and scans take a few seconds so the
 live view and the stop button behave as with nmap. Use a store of its own (VS Code:
 "Proculus (simulation)").
+
+**Custom signatures.** Tab 4 is a text editor for your own signatures (the JSON format of
+`libs/signatures`) with the built-in and custom signatures listed under it (search, category and
+source filters; custom ones first). **Check** validates without saving: syntax, every rule of the
+format, and the `examples` inside the document (an example that does not hold blocks saving).
+**Save** (needs the `config.manage` permission; written to the audit log) stores the document as
+`custom-signatures.json` next to the scan settings, and every scan that starts afterwards reads it
+next to the built-in signatures. A custom file can `override` a built-in signature or `disable`
+built-in ones. Signatures only detect (a header, a cookie, the title, the page, the certificate,
+a few fixed paths); the format cannot send anything, and one file may ask for at most 20 extra paths.
+Everyone with `data.read` can see the list.
+
+**Example: a Minecraft server on port 25565.** [`libs/signatures/examples/minecraft.json`](libs/signatures/examples/minecraft.json)
+(also the editor's "Insert example") recognises a service that is not a web service: it
+uses what nmap found, with two signals, the port (weight 0.6, enough alone to report it at 60 %)
+and nmap naming the service `minecraft` (weight 0.9, together about 96 %), and takes the version
+from nmap. Custom signatures are matched against non-web services after the scan when "web
+probing and technology detection" is ticked (nothing is sent to those services; the built-in
+signatures are only used on web services). The detection shows in Results as a technology chip,
+raises the interest score, and can be exported (`{other}`). Add `25565` to the allowed ports to
+scan for it. The simulation has two Minecraft servers (`mc1.lab`, `mc2.lab`) to try it on.
 
 **Importing scan settings.** "Import scan settings" on the New scan card loads a JSON file
 into the form (nothing is started; you can still change everything). The scheme is fixed
