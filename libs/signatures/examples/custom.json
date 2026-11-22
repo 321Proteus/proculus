@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "disable": ["server-version-disclosure"],
+  "signatures": [
+    {
+      "id": "agh-intranet-portal",
+      "name": "Intranet portal",
+      "category": "admin",
+      "tags": ["internal", "portal"],
+      "interest": 3,
+      "description": "The organisation's internal portal; it should not be reachable from outside.",
+      "threshold": 0.6,
+      "signals": [
+        { "weight": 0.5, "label": "page title", "match": { "field": "title", "op": "contains", "value": "Intranet Portal" } },
+        { "weight": 0.8, "label": "portal cookie", "match": { "field": "cookie", "op": "prefix", "value": "PORTALSESSION" } },
+        {
+          "weight": 0.9,
+          "label": "status page",
+          "match": {
+            "all": [
+              { "field": "path:/portal/version:status", "op": "equals", "value": 200 },
+              { "field": "path:/portal/version:body", "op": "regex", "value": "Portal build [0-9]+" }
+            ]
+          }
+        }
+      ],
+      "exclude": { "field": "host", "op": "suffix", "value": ".test.example" },
+      "version": { "field": "path:/portal/version:body", "regex": "Portal build ([0-9]+)" },
+      "examples": [
+        { "name": "title and cookie", "evidence": { "title": "Intranet Portal - login", "cookie": ["PORTALSESSION"] } },
+        {
+          "name": "version page",
+          "evidence": { "path:/portal/version:status": 200, "path:/portal/version:body": "Portal build 4711" },
+          "version": "4711"
+        },
+        { "name": "title alone is not enough", "evidence": { "title": "Intranet Portal" }, "expect": "no-match" },
+        { "name": "test host", "evidence": { "title": "Intranet Portal", "cookie": ["PORTALSESSION"], "host": "a.test.example" }, "expect": "no-match" }
+      ]
+    }
+  ]
+}

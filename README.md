@@ -86,12 +86,43 @@ validity, self-signed/expired, host name match) and a favicon fingerprint.
 
 It is built to be safe to point at a network: it refuses any address outside
 `--scope` or port outside `--allowed-ports` before sending anything, only sends
-GET requests for `/` and the favicon (no logins, no guessed paths), follows
+GET requests for `/`, the favicon and the few plain paths that signatures ask for (no logins, no query strings, no guessing), follows
 redirects only when they stay on the same host, never sends cookies or
 credentials, limits body and header sizes and time, and rate limits requests.
 
 Run files are plain text for now; keep the directory protected. Encrypted
 storage is the database's job (`libs/db`).
+
+## Detecting technologies
+
+`http-prober` matches what it sees against 125 built-in signatures (servers,
+frameworks, CMS, admin panels, IoT, staging/debug exposure, TLS and cookie
+hygiene) and reports detections with a confidence and the evidence behind it. A
+few safe extra pages (`/wp-login.php`, `/phpmyadmin/`, ...) are fetched with a
+plain GET, at most `--max-paths` per service (`--no-paths` turns it off).
+
+Write your own, check them, and use them:
+
+```sh
+./build/services/signatures/signatures list --category cms
+./build/services/signatures/signatures lint my-signatures/       # checks them and runs their examples
+./build/services/http-prober/http-prober --signatures my-signatures/ --scope ... --allowed-ports ... http://10.0.0.5
+```
+
+The format and an example are in [libs/signatures](libs/signatures/README.md).
+
+To follow web changes over time, let the prober save a copy of a run with the web
+results and detections attached, then compare the saved runs with `differ`
+(it reports changed titles, status, server, redirects, cookies, TLS certificates
+and problems, and technologies added, removed or changing version):
+
+```sh
+./build/services/http-prober/http-prober --scope ... --allowed-ports ... --store results --run latest --save-run
+./build/services/differ/differ --store results diff previous latest
+```
+
+Cookie values never reach a report or a saved run: `Set-Cookie` headers are
+stored as `name=<redacted>; attributes`.
 
 ## Layout
 
@@ -105,6 +136,8 @@ storage is the database's job (`libs/db`).
 - `services/exporter` – lists saved runs and dumps them as text, JSON or CSV
 - `services/differ` – compares runs and follows hosts and services over time
 - `services/http-prober` – looks at web services: headers, cookies, titles, redirects, TLS certificates, favicon fingerprints
+- `libs/signatures` – detection signatures: loader, matching engine, 125 built-ins
+- `services/signatures` – list, lint, test and try out signatures
 - `services/gateway` – entry point (currently the demo above)
 
 ## Tests
