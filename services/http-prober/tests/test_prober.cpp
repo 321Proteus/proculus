@@ -383,7 +383,53 @@ static void test_request_budget_and_rate() {
 	assert(threw);
 }
 
+static void test_probe_paths() {
+	Fake net;
+	net.add("10.0.0.5", 80, false, "/", page(200, {{"Content-Type", "text/html"}}, "<title>x</title>"));
+	net.add("10.0.0.5", 80, false, "/wp-login.php", page(200, {{"Content-Type", "text/html"}}, "<title>Log In</title>user_login"));
+	net.add("10.0.0.5", 80, false, "/admin", redirect(302, "http://evil.example/steal"));
+	ProbeLimits l = limits();
+	l.fetch_favicon = false;
+	l.probe_paths = {"/wp-login.php", "/admin", "/wp-login.php", "/missing"};
+	HttpProber p(net, l, no_wait());
+	ProbeTarget t("10.0.0.5", 80);
+	t.service.product = "nginx";
+	const HttpObservation o = p.probe(t);
+	assert(o.service.product == "nginx");
+	assert(o.paths.size() == 3); // duplicates are fetched once
+	assert(o.paths[0].path == "/wp-login.php" && o.paths[0].status == 200 && o.paths[0].title == "Log In");
+	assert(o.paths[1].status == 302 && o.paths[1].redirect == "http://evil.example/steal"); // recorded, never followed
+	assert(o.paths[2].status == 0 && o.paths[2].error == FetchError::ConnectRefused);
+	assert(o.requests == 4);
+	assert(net.calls.size() == 4);
+	for (size_t i = 1; i < net.calls.size(); i++) assert(net.calls[i].limits.max_body == 64 * 1024 && net.calls[i].ep.ip == "10.0.0.5");
+
+	// no extra requests after a failed main exchange
+	Fake down;
+	HttpProber q(down, l, no_wait());
+	const HttpObservation d = q.probe(ProbeTarget("10.0.0.6", 80));
+	assert(d.paths.empty() && down.calls.size() == 1);
+
+	// and after a partial one
+	Fake partial;
+	Exchange ex = page(200, {}, "<html>");
+	ex.error = FetchError::Timeout;
+	partial.add("10.0.0.7", 80, false, "/", ex);
+	HttpProber r(partial, l, no_wait());
+	assert(r.probe(ProbeTarget("10.0.0.7", 80)).paths.empty() && partial.calls.size() == 1);
+
+	// bad paths are a configuration error
+	for (const char* bad : {"wp-login.php", "/a?b=1", "/a b", "/a#x", ""}) {
+		ProbeLimits b = limits();
+		b.probe_paths = {bad};
+		bool threw = false;
+		try { HttpProber x(net, b, no_wait()); } catch (const std::invalid_argument&) { threw = true; }
+		assert(threw);
+	}
+}
+
 int main() {
+	test_probe_paths();
 	test_target_checks();
 	test_basic_observation();
 	test_scheme_selection();

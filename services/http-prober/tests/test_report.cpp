@@ -130,7 +130,36 @@ static void test_text() {
 	assert(h.find('\x1b') == std::string::npos && h.find('\x07') == std::string::npos && h.find('\r') == std::string::npos);
 }
 
+static void test_detections() {
+	HttpObservation o = sample();
+	PathResult pr; pr.path = "/phpmyadmin/"; pr.status = 200; pr.title = "phpMyAdmin"; pr.body = "SECRET-BODY";
+	o.paths = {pr};
+
+	// without signatures the report has no detections key
+	assert(!probe_to_json(o).contains("detections"));
+	assert(probe_to_text(o).find("detected") == std::string::npos);
+
+	Detections d;
+	sig::Detection x;
+	x.id = "phpmyadmin"; x.name = "phpMyAdmin\x1b[31m"; x.category = sig::Category::Admin; x.confidence = 0.95; x.version = "5.2.1";
+	x.evidence = {"title contains phpMyAdmin"};
+	d.found = {x};
+	d.stats.signatures_evaluated = 125;
+	const ProbeJson j = probe_to_json(o, false, &d);
+	assert(j["detections"].size() == 1 && j["detections"][0]["id"] == "phpmyadmin" && j["detections"][0]["version"] == "5.2.1");
+	assert(j["signature_stats"]["evaluated"] == 125);
+	assert(j["paths"][0]["status"] == 200 && !j["paths"][0].contains("body")); // path bodies are never dumped
+	assert(j.dump().find("SECRET-BODY") == std::string::npos);
+
+	const std::string t = probe_to_text(o, &d);
+	assert(t.find("detected: phpMyAdmin") != std::string::npos && t.find("5.2.1") != std::string::npos);
+	assert(t.find('\x1b') == std::string::npos); // control characters from names are neutralised
+	d.found.clear();
+	assert(probe_to_text(o, &d).find("detections: none") != std::string::npos);
+}
+
 int main() {
+	test_detections();
 	test_json();
 	test_text();
 	return 0;
