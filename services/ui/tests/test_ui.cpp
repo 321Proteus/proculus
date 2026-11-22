@@ -18,7 +18,8 @@ static void test_targets() {
 		assert(!is_proxyable_target(bad));
 	assert(!is_proxyable_target("/api/" + std::string(3000, 'a')));
 	assert(is_postable_path("/api/scan") && is_postable_path("/api/scan/plan") && is_postable_path("/api/scan/stop"));
-	for (const char* no : {"/api/runs", "/api/scan/", "/api/scan/x", "/api/scans", "/api", "/", "/api/scan/stop/"}) assert(!is_postable_path(no));
+	for (const char* p : {"/api/login", "/api/logout", "/api/users", "/api/users/update", "/api/roles", "/api/roles/delete"}) assert(is_postable_path(p));
+	for (const char* no : {"/api/runs", "/api/scan/", "/api/scan/x", "/api/scans", "/api", "/", "/api/scan/stop/", "/api/audit", "/api/me", "/api/users/", "/api/users/delete"}) assert(!is_postable_path(no));
 }
 
 int main() {
@@ -27,7 +28,9 @@ int main() {
 	// ---- a fake gateway
 	httplib::Server fake;
 	std::string last_cookie = "unset", last_host, last_accept;
+	std::string last_session = "unset";
 	fake.Get("/api/echo", [&](const httplib::Request& req, httplib::Response& res) {
+		last_session = req.has_header("X-Proculus-Session") ? req.get_header_value("X-Proculus-Session") : "none";
 		last_cookie = req.has_header("Cookie") ? req.get_header_value("Cookie") : "none";
 		last_host = req.get_header_value("Host");
 		last_accept = req.get_header_value("Accept");
@@ -91,6 +94,12 @@ int main() {
 	assert(echo->get_header_value("Set-Cookie").empty()); // upstream headers are not passed back
 	assert(last_cookie == "none" && last_accept == "application/json"); // the browser's cookies are not passed on
 	assert(last_host == "127.0.0.1:" + std::to_string(fake_port)); // the upstream sees its own address, not the browser's Host
+
+	// ---- the session token is passed on, and only if it is a plain token
+	assert(c.Get("/api/echo?q=1&n=1", httplib::Headers{{"X-Proculus-Session", "abc123"}}) && last_session == "abc123");
+	assert(c.Get("/api/echo?q=1&n=1") && last_session == "none");
+	assert(c.Get("/api/echo?q=1&n=1", httplib::Headers{{"X-Proculus-Session", "has space"}})->status == 400);
+	assert(c.Get("/api/echo?q=1&n=1", httplib::Headers{{"X-Proculus-Session", std::string(200, 'a')}})->status == 400);
 
 	// ---- the gateway's own errors keep their status
 	auto missing = c.Get("/api/missing");

@@ -10,14 +10,15 @@
 // what is decided by the gateway, never here. What the proxy does guarantee:
 //  * only GET and HEAD, only /api/ paths made of plain characters, forwarded to
 //    the one configured upstream (the browser cannot choose the destination);
-//    POST only to the scan routes (/api/scan, /api/scan/plan, /api/scan/stop),
-//    JSON only and small;
+//    POST only to a fixed list of routes (scans, login, users, roles; see
+//    is_postable_path), JSON only and small;
 //  * only a JSON answer is passed back, within a size limit and a time limit;
 //    anything else (a redirect, HTML, a huge body, an unreachable gateway)
 //    becomes a clean 502;
 //  * requests are forwarded without the browser's own headers (cookies and
-//    Host are not passed on); the one exception is the control token
-//    (X-Proculus-Token) on those POSTs, which the gateway checks.
+//    Host are not passed on); the exceptions are the session token
+//    (X-Proculus-Session) and the control token (X-Proculus-Token), which the
+//    gateway checks.
 // It has no login of its own, so like the gateway API it listens on loopback
 // by default and checks the Host header (DNS rebinding).
 

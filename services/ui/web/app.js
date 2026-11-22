@@ -19,6 +19,15 @@ const TEXTS = {
     running: 'Skan w toku', stopping: 'Zatrzymywanie…', stage: 'Etap', hostsFound: 'Znalezione hosty', elapsed: 'Czas', chunksDone: 'porcje', pausesN: 'pauzy',
     log: 'Dziennik', lastScan: 'Ostatni skan z interfejsu', finishedAt: 'Zakończono', savedAs: 'zapisany jako skan', openRun: 'Zobacz usługi', scanOk: 'Zakończony', scanFailed: 'Nieudany',
     warnings: 'Ostrzeżenia', scanInProgress: 'Trwa skan', seconds: 's', started_ok: 'Skan uruchomiony.',
+    save: 'Zapisz', login: 'Zaloguj się', username: 'Użytkownik', password: 'Hasło', signIn: 'Zaloguj', signOut: 'Wyloguj', noUsers: 'Nie ma jeszcze żadnych kont.',
+    noUsersHint: 'Utwórz pierwszego administratora poleceniem: gateway user add TWOJA.NAZWA --role admin', forbidden: 'Twoja rola nie ma dostępu do tej strony.',
+    adminTitle: 'Administracja', users: 'Użytkownicy', roles: 'Role', audit: 'Dziennik zdarzeń', role: 'Rola', status: 'Status', lastLogin: 'Ostatnie logowanie', actions: 'Akcje',
+    enabled: 'aktywne', disabled: 'wyłączone', disable: 'Wyłącz', enable: 'Włącz', resetPassword: 'Zmień hasło', newPassword: 'Nowe hasło (min. 10 znaków)', addUser: 'Dodaj użytkownika',
+    never: 'nigdy', permissions: 'Uprawnienia', description: 'Opis', addRole: 'Dodaj rolę', roleName: 'Nazwa roli (małe litery)', deleteRole: 'Usuń', builtin: 'wbudowana',
+    when_: 'Kiedy', who: 'Kto', action: 'Akcja', entity: 'Obiekt', detail: 'Szczegóły', saved: 'Zapisano.', authOff: 'Logowanie jest wyłączone na tym serwerze (uruchom bramę z opcją --auth).',
+    role_admin: 'Administracja', role_manager: 'Dodawanie, usuwanie, modyfikacja', role_editor: 'Modyfikacja i odczyt', role_viewer: 'Odczyt',
+    'perm_data.read': 'odczyt danych', 'perm_data.edit': 'modyfikacja danych', 'perm_data.create': 'dodawanie danych', 'perm_data.delete': 'usuwanie danych', perm_export: 'eksport',
+    'perm_scan.run': 'uruchamianie skanów', 'perm_config.manage': 'konfiguracja', 'perm_users.manage': 'zarządzanie użytkownikami',
     latest: 'najnowszy', loading: 'Ładowanie…', error: 'Błąd', noRuns: 'Brak zapisanych skanów.',
     noRunsHint: 'Uruchom skan (np. gateway --store results) i odśwież stronę.',
     lastRun: 'Ostatni skan', started: 'Start', source: 'Źródło', hosts: 'Hosty', servicesN: 'Usługi', webServices: 'Usługi webowe', detections: 'Wykrycia',
@@ -49,6 +58,15 @@ const TEXTS = {
     running: 'Scan in progress', stopping: 'Stopping…', stage: 'Stage', hostsFound: 'Hosts found', elapsed: 'Elapsed', chunksDone: 'chunks', pausesN: 'pauses',
     log: 'Log', lastScan: 'Last scan from the UI', finishedAt: 'Finished', savedAs: 'saved as run', openRun: 'View services', scanOk: 'Finished', scanFailed: 'Failed',
     warnings: 'Warnings', scanInProgress: 'A scan is running', seconds: 's', started_ok: 'Scan started.',
+    save: 'Save', login: 'Sign in', username: 'User name', password: 'Password', signIn: 'Sign in', signOut: 'Sign out', noUsers: 'There are no accounts yet.',
+    noUsersHint: 'Create the first administrator with: gateway user add YOUR.NAME --role admin', forbidden: 'Your role has no access to this page.',
+    adminTitle: 'Administration', users: 'Users', roles: 'Roles', audit: 'Audit log', role: 'Role', status: 'Status', lastLogin: 'Last login', actions: 'Actions',
+    enabled: 'enabled', disabled: 'disabled', disable: 'Disable', enable: 'Enable', resetPassword: 'Reset password', newPassword: 'New password (at least 10 characters)', addUser: 'Add user',
+    never: 'never', permissions: 'Permissions', description: 'Description', addRole: 'Add role', roleName: 'Role name (lowercase)', deleteRole: 'Delete', builtin: 'built in',
+    when_: 'When', who: 'Who', action: 'Action', entity: 'Object', detail: 'Details', saved: 'Saved.', authOff: 'Login is turned off on this server (start the gateway with --auth).',
+    role_admin: 'Administration', role_manager: 'Add, delete and modify', role_editor: 'Modify and read', role_viewer: 'Read only',
+    'perm_data.read': 'read data', 'perm_data.edit': 'modify data', 'perm_data.create': 'add data', 'perm_data.delete': 'delete data', perm_export: 'export',
+    'perm_scan.run': 'run scans', 'perm_config.manage': 'configuration', 'perm_users.manage': 'manage users',
     latest: 'latest', loading: 'Loading…', error: 'Error', noRuns: 'No saved runs yet.',
     noRunsHint: 'Run a scan (e.g. gateway --store results) and reload.',
     lastRun: 'Latest run', started: 'Started', source: 'Source', hosts: 'Hosts', servicesN: 'Services', webServices: 'Web services', detections: 'Detections',
@@ -88,23 +106,42 @@ function el(tag, props, ...kids) {
   return e;
 }
 
+function authHeaders(h) {
+  if (session.token) h['X-Proculus-Session'] = session.token;
+  return h;
+}
+
 async function api(path) {
-  const r = await fetch(path, { headers: { Accept: 'application/json' } });
+  const r = await fetch(path, { headers: authHeaders({ Accept: 'application/json' }) });
   let body = null;
   try { body = await r.json(); } catch (e) { /* not JSON */ }
+  if (r.status === 401 && auth && auth.enabled && path !== '/api/auth') { setSession('', null); throw new LoginRequired(); }
   if (!r.ok) throw new Error((body && body.error) || ('HTTP ' + r.status));
   return body;
 }
+
+// ---- login state. `auth` is null until the server has been asked; then {enabled, hasUsers}.
+let auth = null;
+let session = { token: '', user: null };
+try { session.token = sessionStorage.getItem('proculus.session') || ''; } catch (e) { /* storage may be unavailable */ }
+const roleLabel = (r) => { const k = 'role_' + r; return TEXTS[lang][k] || r; };
+const can = (perm) => !auth || !auth.enabled || (session.user && session.user.permissions.includes(perm));
+function setSession(token, user) {
+  session = { token, user };
+  try { if (token) sessionStorage.setItem('proculus.session', token); else sessionStorage.removeItem('proculus.session'); } catch (e) { /* ignore */ }
+}
+class LoginRequired extends Error {}
 
 let controlToken = '';
 try { controlToken = sessionStorage.getItem('proculus.token') || ''; } catch (e) { /* storage may be unavailable */ }
 
 async function post(path, body) {
-  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-  if (controlToken) headers['X-Proculus-Token'] = controlToken;
+  const headers = authHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' });
+  if (controlToken && !(auth && auth.enabled)) headers['X-Proculus-Token'] = controlToken;
   const r = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body || {}) });
   let data = null;
   try { data = await r.json(); } catch (e) { /* not JSON */ }
+  if (r.status === 401 && auth && auth.enabled && path !== '/api/login') { setSession('', null); throw new LoginRequired(); }
   if (!r.ok) throw new Error((data && data.error) || ('HTTP ' + r.status));
   return data;
 }
@@ -362,7 +399,7 @@ async function viewScan() {
     el('div', { class: 'row3' }, field(t('workers'), '', workers), field(t('rate'), '', rate), field(t('timing'), '', timing)),
     p.allow_web ? el('label', { class: 'check' }, web, ' ' + t('web')) : null,
     p.allow_privileged ? el('label', { class: 'check' }, priv, ' ' + t('privileged')) : null,
-    field(t('token'), t('tokenHint'), token),
+    auth && auth.enabled ? null : field(t('token'), t('tokenHint'), token),
     el('div', { class: 'toolbar' }, planBtn, startBtn), message, planBox));
   return out;
 }
@@ -378,8 +415,76 @@ function pollScan() {
   tick();
 }
 
+// ---- sign in
+function viewLogin() {
+  const user = el('input', { type: 'text', autocomplete: 'username', autofocus: true });
+  const pass = el('input', { type: 'password', autocomplete: 'current-password' });
+  const message = el('div', {});
+  const submit = async () => {
+    message.replaceChildren();
+    try {
+      const r = await post('/api/login', { username: user.value.trim(), password: pass.value });
+      setSession(r.token, r.user);
+      location.hash = '#/dashboard';
+      render();
+    } catch (e) { message.replaceChildren(el('div', { class: 'err' }, e.message)); pass.value = ''; }
+  };
+  pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  user.addEventListener('keydown', (e) => { if (e.key === 'Enter') pass.focus(); });
+  return el('div', { class: 'card login' }, el('h1', {}, t('login')),
+    auth && !auth.hasUsers ? el('div', { class: 'err' }, el('strong', {}, t('noUsers')), ' ', t('noUsersHint')) : null,
+    field(t('username'), '', user), field(t('password'), '', pass),
+    el('div', { class: 'toolbar' }, el('button', { class: 'primary', onclick: submit }, t('signIn'))), message);
+}
+
+// ---- administration: users, roles, audit log
+async function viewAdmin() {
+  if (!auth || !auth.enabled) return el('div', { class: 'card empty' }, el('h2', {}, t('adminTitle')), el('p', {}, t('authOff')));
+  if (!can('users.manage')) return el('div', { class: 'card empty' }, el('p', {}, t('forbidden')));
+  const [users, roles, audit] = await Promise.all([api('/api/users'), api('/api/roles'), api('/api/audit?limit=100')]);
+  const message = el('div', {});
+  const done = async (fn) => {
+    message.replaceChildren();
+    try { await fn(); render(); } catch (e) { if (e instanceof LoginRequired) throw e; message.replaceChildren(el('div', { class: 'err' }, e.message)); }
+  };
+  const roleSelect = (value) => el('select', {}, roles.map((r) => el('option', { value: r.name, selected: r.name === value }, roleLabel(r.name))));
+
+  const rows = users.map((u) => {
+    const sel = roleSelect(u.role);
+    return el('tr', {}, el('td', {}, u.username), el('td', {}, sel, ' ', el('button', { onclick: () => done(() => post('/api/users/update', { id: u.id, role: sel.value })) }, t('save'))),
+      el('td', { class: u.disabled ? 'tag-gone' : 'tag-new' }, u.disabled ? t('disabled') : t('enabled')), el('td', {}, u.last_login ? when(u.last_login) : t('never')),
+      el('td', {}, el('button', { onclick: () => done(() => post('/api/users/update', { id: u.id, disabled: !u.disabled })) }, u.disabled ? t('enable') : t('disable')), ' ',
+        el('button', { onclick: () => { const pw = window.prompt(t('newPassword')); if (pw) done(() => post('/api/users/update', { id: u.id, password: pw })); } }, t('resetPassword'))));
+  });
+  const nu = el('input', { type: 'text', placeholder: t('username'), autocomplete: 'off' }), np = el('input', { type: 'password', placeholder: t('newPassword'), autocomplete: 'new-password' }), nr = roleSelect('viewer');
+
+  const perms = el('div', { class: 'perms' });
+  const checks = ['data.read', 'data.edit', 'data.create', 'data.delete', 'export', 'scan.run', 'config.manage', 'users.manage'].map((p) => {
+    const box = el('input', { type: 'checkbox', value: p, checked: p === 'data.read' });
+    perms.append(el('label', { class: 'check' }, box, ' ' + t('perm_' + p)));
+    return box;
+  });
+  const rn = el('input', { type: 'text', placeholder: t('roleName'), autocomplete: 'off' }), rd = el('input', { type: 'text', placeholder: t('description'), autocomplete: 'off' });
+
+  return el('div', {}, el('h1', {}, t('adminTitle')), message,
+    el('div', { class: 'card', style: 'margin-bottom:14px' }, el('h2', {}, t('users')),
+      el('table', {}, el('thead', {}, el('tr', {}, ['username', 'role', 'status', 'lastLogin', 'actions'].map((k) => el('th', {}, t(k))))), el('tbody', {}, rows)),
+      el('div', { class: 'toolbar', style: 'margin-top:12px' }, nu, np, nr, el('button', { class: 'primary', onclick: () => done(() => post('/api/users', { username: nu.value.trim(), password: np.value, role: nr.value })) }, t('addUser')))),
+    el('div', { class: 'card', style: 'margin-bottom:14px' }, el('h2', {}, t('roles')),
+      el('table', {}, el('thead', {}, el('tr', {}, ['role', 'description', 'permissions', 'users', ''].map((k) => el('th', {}, k === 'users' ? t('users') : k ? t(k) : '')))),
+        el('tbody', {}, roles.map((r) => el('tr', {}, el('td', {}, roleLabel(r.name), r.builtin ? el('span', { class: 'chip' }, t('builtin')) : null), el('td', {}, r.description),
+          el('td', {}, r.permissions.map((p) => el('span', { class: 'chip' }, t('perm_' + p)))), el('td', {}, String(r.users)),
+          el('td', {}, r.builtin ? null : el('button', { class: 'danger', onclick: () => done(() => post('/api/roles/delete', { name: r.name })) }, t('deleteRole'))))))),
+      el('h2', { style: 'margin-top:14px' }, t('addRole')), el('div', { class: 'toolbar' }, rn, rd), perms,
+      el('div', { class: 'toolbar' }, el('button', { class: 'primary', onclick: () => done(() => post('/api/roles', { name: rn.value.trim(), description: rd.value, permissions: checks.filter((b) => b.checked).map((b) => b.value) })) }, t('addRole')))),
+    el('div', { class: 'card' }, el('h2', {}, t('audit')),
+      el('table', {}, el('thead', {}, el('tr', {}, ['when_', 'who', 'action', 'entity', 'detail'].map((k) => el('th', {}, t(k))))),
+        el('tbody', {}, audit.map((e) => el('tr', {}, el('td', { class: 'mono' }, when(e.at)), el('td', {}, e.user || '—'), el('td', {}, e.action), el('td', { class: 'mono' }, e.entity), el('td', {}, e.detail)))))));
+}
+
 // ---------------------------------------------------------------- shell
-const ROUTES = { dashboard: viewDashboard, services: viewServices, runs: viewRuns, changes: viewChanges, scan: viewScan };
+const ROUTES = { dashboard: viewDashboard, services: viewServices, runs: viewRuns, changes: viewChanges, scan: viewScan, admin: viewAdmin };
+const ROUTE_PERMISSION = { dashboard: 'data.read', services: 'data.read', runs: 'data.read', changes: 'data.read', scan: 'scan.run', admin: 'users.manage' };
 
 function parseHash() {
   const raw = location.hash.replace(/^#\/?/, '');
@@ -395,25 +500,35 @@ function parseHash() {
 
 function renderNav(active) {
   const nav = document.getElementById('nav');
+  const signedOut = auth && auth.enabled && !session.user;
   nav.replaceChildren(
-    ...Object.keys(ROUTES).map((n) => el('a', { href: '#/' + n, class: n === active ? 'active' : '' }, t(n))),
-    // placeholders for the next steps (forms, users and roles)
-    el('span', { class: 'soon', title: t('soon') }, t('add')),
-    el('span', { class: 'soon', title: t('soon') }, t('admin')));
+    ...(signedOut ? [] : Object.keys(ROUTES).filter((n) => (n !== 'admin' || (auth && auth.enabled)) && can(ROUTE_PERMISSION[n])).map((n) => el('a', { href: '#/' + n, class: n === active ? 'active' : '' }, t(n)))),
+    // a placeholder for the next step (entering data by hand and importing it)
+    ...(signedOut || !can('data.create') ? [] : [el('span', { class: 'soon', title: t('soon') }, t('add'))]));
+  const box = document.getElementById('userbox');
+  box.replaceChildren(...(session.user ? [el('span', { class: 'who' }, session.user.username + ' · ' + roleLabel(session.user.role)),
+    el('button', { onclick: async () => { try { await post('/api/logout'); } catch (e) { /* the session may be gone already */ } setSession('', null); location.hash = '#/dashboard'; render(); } }, t('signOut'))] : []));
 }
 
 let renderToken = 0;
 async function render() {
   const token = ++renderToken;
-  const { name, params } = parseHash();
-  renderNav(name);
-  document.documentElement.lang = lang;
   const view = document.getElementById('view');
-  view.replaceChildren(el('p', { class: 'sub' }, t('loading')));
+  document.documentElement.lang = lang;
   try {
+    if (!auth) auth = await fetch('/api/auth').then((r) => (r.ok ? r.json() : { enabled: false })).then((a) => ({ enabled: !!a.enabled, hasUsers: a.has_users !== false })).catch(() => ({ enabled: false, hasUsers: true }));
+    if (auth.enabled && session.token && !session.user) {
+      try { session.user = (await api('/api/me')).user; } catch (e) { if (!(e instanceof LoginRequired)) throw e; }
+    }
+    const { name, params } = parseHash();
+    renderNav(name);
+    if (auth.enabled && !session.user) { if (token === renderToken) view.replaceChildren(viewLogin()); return; }
+    if (!can(ROUTE_PERMISSION[name])) { view.replaceChildren(el('div', { class: 'card empty' }, el('p', {}, t('forbidden')))); return; }
+    view.replaceChildren(el('p', { class: 'sub' }, t('loading')));
     const node = await ROUTES[name](params);
     if (token === renderToken) view.replaceChildren(node);
   } catch (e) {
+    if (e instanceof LoginRequired) { if (token === renderToken) { renderNav('dashboard'); view.replaceChildren(viewLogin()); } return; }
     if (token === renderToken) view.replaceChildren(el('div', { class: 'err' }, t('error') + ': ' + e.message));
   }
 }

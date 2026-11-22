@@ -48,7 +48,25 @@ bool is_proxyable_target(const std::string& target) {
 	return true;
 }
 
-bool is_postable_path(const std::string& path) { return path == "/api/scan" || path == "/api/scan/plan" || path == "/api/scan/stop"; }
+bool is_postable_path(const std::string& path) {
+	static const char* const paths[] = {"/api/scan", "/api/scan/plan", "/api/scan/stop", "/api/login", "/api/logout", "/api/users", "/api/users/update", "/api/roles", "/api/roles/delete"};
+	return std::any_of(std::begin(paths), std::end(paths), [&](const char* p) { return path == p; });
+}
+
+// The session token (or control token) a request carries: printable, short, or it is not passed on.
+static bool token_ok(const std::string& t) { return t.size() <= 128 && std::all_of(t.begin(), t.end(), [](unsigned char c) { return c > 0x20 && c < 0x7f; }); }
+
+static httplib::Headers forwarded_headers(const httplib::Request& req, bool& ok) {
+	httplib::Headers h = {{"Accept", "application/json"}};
+	ok = true;
+	for (const char* name : {"X-Proculus-Session", "X-Proculus-Token"}) {
+		const std::string v = req.get_header_value(name);
+		if (v.empty()) continue;
+		if (!token_ok(v)) ok = false;
+		else h.emplace(name, v);
+	}
+	return h;
+}
 
 UiServer::UiServer(UiConfig config) : config_(std::move(config)), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
@@ -104,19 +122,19 @@ UiServer::UiServer(UiConfig config) : config_(std::move(config)), server_(std::m
 
 	svr.Get(R"(/api/.*)", [client, pass_on](const httplib::Request& req, httplib::Response& res) {
 		if (!is_proxyable_target(req.target)) return send_error(res, 400, "bad request");
-		pass_on(res, client()->Get(req.target, httplib::Headers{{"Accept", "application/json"}}));
+		bool ok;
+		const httplib::Headers headers = forwarded_headers(req, ok);
+		if (!ok) return send_error(res, 400, "bad token");
+		pass_on(res, client()->Get(req.target, headers));
 	});
 
 	svr.Post(R"(/api/.*)", [this, client, pass_on](const httplib::Request& req, httplib::Response& res) {
 		if (!is_proxyable_target(req.target) || req.target.find('?') != std::string::npos || !is_postable_path(req.path)) return send_error(res, 405, "not allowed");
 		if (req.get_header_value("Content-Type").compare(0, 16, "application/json") != 0) return send_error(res, 415, "send JSON");
 		if (req.body.size() > config_.max_post_body) return send_error(res, 413, "the request is too large");
-		httplib::Headers headers = {{"Accept", "application/json"}};
-		const std::string token = req.get_header_value("X-Proculus-Token");
-		if (!token.empty()) {
-			if (token.size() > 128 || !std::all_of(token.begin(), token.end(), [](unsigned char c) { return c > 0x20 && c < 0x7f; })) return send_error(res, 400, "bad token");
-			headers.emplace("X-Proculus-Token", token);
-		}
+		bool ok;
+		const httplib::Headers headers = forwarded_headers(req, ok);
+		if (!ok) return send_error(res, 400, "bad token");
 		pass_on(res, client()->Post(req.target, headers, req.body, "application/json"));
 	});
 
