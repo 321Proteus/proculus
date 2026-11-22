@@ -19,6 +19,10 @@ const TEXTS = {
     running: 'Skan w toku', stopping: 'Zatrzymywanie…', stage: 'Etap', hostsFound: 'Znalezione hosty', elapsed: 'Czas', chunksDone: 'porcje', pausesN: 'pauzy',
     log: 'Dziennik', lastScan: 'Ostatni skan z interfejsu', finishedAt: 'Zakończono', savedAs: 'zapisany jako skan', openRun: 'Zobacz usługi', scanOk: 'Zakończony', scanFailed: 'Nieudany',
     warnings: 'Ostrzeżenia', scanInProgress: 'Trwa skan', seconds: 's', started_ok: 'Skan uruchomiony.',
+    setupTitle: 'Pierwsze uruchomienie', setupIntro: 'Nie ma jeszcze żadnych kont. Utwórz konto administratora.', setupToken: 'Token instalacji',
+    setupTokenHint: 'Wypisany w konsoli bramy (gateway serve) przy starcie. Chroni przed tym, by ktoś inny założył konto pierwszy.', confirmPassword: 'Powtórz hasło',
+    passwordsDiffer: 'Hasła się różnią.', createAdmin: 'Utwórz administratora',
+    openMode: 'Logowanie jest wyłączone na tym serwerze (--no-auth): każdy, kto ma dostęp do tej strony, widzi wszystkie dane.',
     save: 'Zapisz', login: 'Zaloguj się', username: 'Użytkownik', password: 'Hasło', signIn: 'Zaloguj', signOut: 'Wyloguj', noUsers: 'Nie ma jeszcze żadnych kont.',
     noUsersHint: 'Utwórz pierwszego administratora poleceniem: gateway user add TWOJA.NAZWA --role admin', forbidden: 'Twoja rola nie ma dostępu do tej strony.',
     adminTitle: 'Administracja', users: 'Użytkownicy', roles: 'Role', audit: 'Dziennik zdarzeń', role: 'Rola', status: 'Status', lastLogin: 'Ostatnie logowanie', actions: 'Akcje',
@@ -58,6 +62,10 @@ const TEXTS = {
     running: 'Scan in progress', stopping: 'Stopping…', stage: 'Stage', hostsFound: 'Hosts found', elapsed: 'Elapsed', chunksDone: 'chunks', pausesN: 'pauses',
     log: 'Log', lastScan: 'Last scan from the UI', finishedAt: 'Finished', savedAs: 'saved as run', openRun: 'View services', scanOk: 'Finished', scanFailed: 'Failed',
     warnings: 'Warnings', scanInProgress: 'A scan is running', seconds: 's', started_ok: 'Scan started.',
+    setupTitle: 'First-run setup', setupIntro: 'There are no accounts yet. Create the administrator account.', setupToken: 'Setup token',
+    setupTokenHint: 'Printed on the gateway console (gateway serve) at startup. It stops anyone else from creating the first account before you.', confirmPassword: 'Repeat password',
+    passwordsDiffer: 'The passwords differ.', createAdmin: 'Create administrator',
+    openMode: 'Login is turned off on this server (--no-auth): anyone who can reach this page can see all the data.',
     save: 'Save', login: 'Sign in', username: 'User name', password: 'Password', signIn: 'Sign in', signOut: 'Sign out', noUsers: 'There are no accounts yet.',
     noUsersHint: 'Create the first administrator with: gateway user add YOUR.NAME --role admin', forbidden: 'Your role has no access to this page.',
     adminTitle: 'Administration', users: 'Users', roles: 'Roles', audit: 'Audit log', role: 'Role', status: 'Status', lastLogin: 'Last login', actions: 'Actions',
@@ -417,6 +425,7 @@ function pollScan() {
 
 // ---- sign in
 function viewLogin() {
+  if (auth && auth.setupRequired) return viewSetup();
   const user = el('input', { type: 'text', autocomplete: 'username', autofocus: true });
   const pass = el('input', { type: 'password', autocomplete: 'current-password' });
   const message = el('div', {});
@@ -435,6 +444,30 @@ function viewLogin() {
     auth && !auth.hasUsers ? el('div', { class: 'err' }, el('strong', {}, t('noUsers')), ' ', t('noUsersHint')) : null,
     field(t('username'), '', user), field(t('password'), '', pass),
     el('div', { class: 'toolbar' }, el('button', { class: 'primary', onclick: submit }, t('signIn'))), message);
+}
+
+// ---- first-run setup: create the administrator (needs the setup token from the gateway console)
+function viewSetup() {
+  const token = el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false' });
+  const user = el('input', { type: 'text', autocomplete: 'username' });
+  const pass = el('input', { type: 'password', autocomplete: 'new-password' });
+  const again = el('input', { type: 'password', autocomplete: 'new-password' });
+  const message = el('div', {});
+  const submit = async () => {
+    message.replaceChildren();
+    if (pass.value !== again.value) { message.replaceChildren(el('div', { class: 'err' }, t('passwordsDiffer'))); return; }
+    try {
+      const r = await post('/api/setup', { setup_token: token.value.trim(), username: user.value.trim(), password: pass.value });
+      auth = { enabled: true, hasUsers: true, setupRequired: false };
+      setSession(r.token, r.user);
+      location.hash = '#/dashboard';
+      render();
+    } catch (e) { message.replaceChildren(el('div', { class: 'err' }, e.message)); pass.value = ''; again.value = ''; }
+  };
+  again.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  return el('div', { class: 'card login' }, el('h1', {}, t('setupTitle')), el('p', { class: 'sub' }, t('setupIntro')),
+    field(t('setupToken'), t('setupTokenHint'), token), field(t('username'), '', user), field(t('password'), t('newPassword'), pass), field(t('confirmPassword'), '', again),
+    el('div', { class: 'toolbar' }, el('button', { class: 'primary', onclick: submit }, t('createAdmin'))), message);
 }
 
 // ---- administration: users, roles, audit log
@@ -516,7 +549,7 @@ async function render() {
   const view = document.getElementById('view');
   document.documentElement.lang = lang;
   try {
-    if (!auth) auth = await fetch('/api/auth').then((r) => (r.ok ? r.json() : { enabled: false })).then((a) => ({ enabled: !!a.enabled, hasUsers: a.has_users !== false })).catch(() => ({ enabled: false, hasUsers: true }));
+    if (!auth) auth = await fetch('/api/auth').then((r) => (r.ok ? r.json() : { enabled: false })).then((a) => ({ enabled: !!a.enabled, hasUsers: a.has_users !== false, setupRequired: !!a.setup_required })).catch(() => ({ enabled: false, hasUsers: true }));
     if (auth.enabled && session.token && !session.user) {
       try { session.user = (await api('/api/me')).user; } catch (e) { if (!(e instanceof LoginRequired)) throw e; }
     }
@@ -526,7 +559,7 @@ async function render() {
     if (!can(ROUTE_PERMISSION[name])) { view.replaceChildren(el('div', { class: 'card empty' }, el('p', {}, t('forbidden')))); return; }
     view.replaceChildren(el('p', { class: 'sub' }, t('loading')));
     const node = await ROUTES[name](params);
-    if (token === renderToken) view.replaceChildren(node);
+    if (token === renderToken) view.replaceChildren(...(auth.enabled ? [node] : [el('div', { class: 'err warn' }, t('openMode')), node]));
   } catch (e) {
     if (e instanceof LoginRequired) { if (token === renderToken) { renderNav('dashboard'); view.replaceChildren(viewLogin()); } return; }
     if (token === renderToken) view.replaceChildren(el('div', { class: 'err' }, t('error') + ': ' + e.message));

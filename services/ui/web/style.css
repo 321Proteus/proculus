@@ -75,3 +75,4 @@ pre.log { background: var(--bg); border: 1px solid var(--line); border-radius: 6
 .card.login { max-width: 420px; margin: 40px auto; }
 .perms { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2px 12px; margin: 8px 0; }
 .toolbar input[type=text], .toolbar input[type=password] { width: auto; flex: 1; min-width: 160px; }
+.err.warn { margin-bottom: 14px; border-color: var(--medium); color: var(--medium); }

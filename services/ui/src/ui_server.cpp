@@ -49,7 +49,7 @@ bool is_proxyable_target(const std::string& target) {
 }
 
 bool is_postable_path(const std::string& path) {
-	static const char* const paths[] = {"/api/scan", "/api/scan/plan", "/api/scan/stop", "/api/login", "/api/logout", "/api/users", "/api/users/update", "/api/roles", "/api/roles/delete"};
+	static const char* const paths[] = {"/api/scan", "/api/scan/plan", "/api/scan/stop", "/api/login", "/api/setup", "/api/logout", "/api/users", "/api/users/update", "/api/roles", "/api/roles/delete"};
 	return std::any_of(std::begin(paths), std::end(paths), [&](const char* p) { return path == p; });
 }
 
