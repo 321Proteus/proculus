@@ -27,6 +27,14 @@ struct ServicesQuery {
 	bool only_edited = false;  // only services or hosts somebody has edited
 };
 
+struct ExportQuery {
+	ServicesQuery filter;      // which services (limit and offset are ignored)
+	std::string row;           // template for every service, see export_format.hpp (required)
+	std::string header, footer; // optional; {run} and {count} only
+	bool unique = false;       // drop rows that come out identical (e.g. only {ip})
+	size_t limit = 50000;      // most rows returned (1..100000)
+};
+
 class Api {
 public:
 	// `edits` (optional, must outlive the Api) are applied on top of what the runs say: an edited host
@@ -38,6 +46,8 @@ public:
 	// `which` is a run number or "latest".
 	Json dashboard(const std::string& which) const;
 	Json services(const std::string& which, const ServicesQuery& q) const;
+	// The services as text through the user's template: {run, rows, truncated, text}. 400 for a bad template.
+	Json export_text(const std::string& which, const ExportQuery& q) const;
 	Json diff(const std::string& before, const std::string& after) const;
 	// Host states over time (replays all runs): counts and the hosts that need attention.
 	Json hosts() const;

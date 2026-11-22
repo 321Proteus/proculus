@@ -68,7 +68,7 @@ struct Rule {
 const Rule kRules[] = {
 	{"GET", "/api/health", ""}, {"GET", "/api/auth", ""}, {"POST", "/api/login", ""}, {"POST", "/api/setup", ""}, {"POST", "/api/logout", "*"}, {"GET", "/api/me", "*"},
 	{"GET", "/api/runs", "data.read"}, {"GET", "/api/dashboard", "data.read"}, {"GET", "/api/services", "data.read"}, {"GET", "/api/diff", "data.read"},
-	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/scan", "data.read"}, {"GET", "/api/edits", "data.read"},
+	{"GET", "/api/hosts", "data.read"}, {"GET", "/api/export", "export"}, {"GET", "/api/scan", "data.read"}, {"GET", "/api/edits", "data.read"},
 	{"POST", "/api/edits", "data.edit"}, {"POST", "/api/edits/clear", "data.edit"},
 	{"POST", "/api/scan", "scan.run"}, {"POST", "/api/scan/plan", "scan.run"}, {"POST", "/api/scan/stop", "scan.run"},
 	{"GET", "/api/scan/config", "config.manage"}, {"POST", "/api/scan/config", "config.manage"},
@@ -182,6 +182,21 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			q.hide_ignored = text_param(req, "hide", "") == "1";
 			q.only_edited = text_param(req, "edited", "") == "1";
 			return api_.services(text_param(req, "run", "latest", 20), q);
+		});
+	});
+	svr.Get("/api/export", [this](const httplib::Request& req, httplib::Response& res) {
+		api_route(res, [&] {
+			ExportQuery q;
+			q.filter.text = text_param(req, "q", "");
+			q.filter.min_score = static_cast<int>(number_param(req, "min_score", 0, 100));
+			q.filter.hide_ignored = text_param(req, "hide", "") == "1";
+			q.filter.only_edited = text_param(req, "edited", "") == "1";
+			q.row = text_param(req, "row", "", 600);
+			q.header = text_param(req, "header", "", 600);
+			q.footer = text_param(req, "footer", "", 600);
+			q.unique = text_param(req, "unique", "") == "1";
+			q.limit = number_param(req, "limit", 50000, 100000);
+			return api_.export_text(text_param(req, "run", "latest", 20), q);
 		});
 	});
 	svr.Get("/api/diff", [this](const httplib::Request& req, httplib::Response& res) {

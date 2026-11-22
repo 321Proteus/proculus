@@ -1,4 +1,5 @@
 #include "api.hpp"
+#include "export_format.hpp"
 
 #include <algorithm>
 #include <map>
@@ -94,6 +95,19 @@ void sort_views(std::vector<View>& views) {
 Json finding_json(const Finding& f) {
 	return { { "ip", f.ip }, { "hostname", f.hostname }, { "port", f.port }, { "protocol", f.protocol }, { "service", f.service }, { "title", f.title },
 		{ "score", f.score }, { "level", f.level }, { "reasons", f.reasons }, { "detections", f.detections } };
+}
+
+bool keep(const View& v, const ServicesQuery& q, const std::string& needle) {
+	const Finding& f = v.f;
+	if (f.score < q.min_score) return false;
+	if (q.hide_ignored && hidden(v)) return false;
+	if (q.only_edited && !v.edited) return false;
+	if (!needle.empty()) {
+		std::string hay = lower(f.ip + " " + f.hostname + " " + v.scan_hostname + " " + f.service + " " + f.title + " " + std::to_string(f.port) + " " + v.status + " " + v.search);
+		for (const std::string& d : f.detections) hay += " " + lower(d);
+		if (hay.find(needle) == std::string::npos) return false;
+	}
+	return true;
 }
 
 Json view_json(const View& v) {
@@ -196,19 +210,74 @@ Json Api::services(const std::string& which, const ServicesQuery& q) const {
 	for (Finding& f : list_findings(run)) views.push_back(overlay(std::move(f), edits));
 	if (!edits.empty()) sort_views(views); // priorities may have changed the order
 	for (const View& v : views) {
-		const Finding& f = v.f;
-		if (f.score < q.min_score) continue;
-		if (q.hide_ignored && hidden(v)) continue;
-		if (q.only_edited && !v.edited) continue;
-		if (!needle.empty()) {
-			std::string hay = lower(f.ip + " " + f.hostname + " " + v.scan_hostname + " " + f.service + " " + f.title + " " + std::to_string(f.port) + " " + v.status + " " + v.search);
-			for (const std::string& d : f.detections) hay += " " + lower(d);
-			if (hay.find(needle) == std::string::npos) continue;
-		}
+		if (!keep(v, q, needle)) continue;
 		if (matched >= q.offset && rows.size() < q.limit) rows.push_back(view_json(v));
 		matched++;
 	}
 	return { { "run", run.id }, { "total", matched }, { "offset", q.offset }, { "limit", q.limit }, { "services", std::move(rows) } };
+}
+
+Json Api::export_text(const std::string& which, const ExportQuery& q) const {
+	if (q.limit < 1 || q.limit > 100000) throw ApiError(400, "limit must be 1..100000");
+	if (q.row.empty()) throw ApiError(400, "give a row template, for example {ip}:{port}");
+	static const std::set<std::string> row_names = {"ip", "hostname", "port", "protocol", "service", "title", "score", "level", "status", "detections", "reasons", "run", "n"};
+	static const std::set<std::string> edge_names = {"run", "count"};
+	const RowTemplate row = RowTemplate::parse(q.row, row_names, "row template");
+	const RowTemplate header = RowTemplate::parse(q.header, edge_names, "header");
+	const RowTemplate footer = RowTemplate::parse(q.footer, edge_names, "footer");
+
+	const RunRecord run = load(which);
+	const std::string needle = lower(q.filter.text);
+	const EditMap edits = load_edits(edits_);
+	std::vector<View> views;
+	for (Finding& f : list_findings(run)) views.push_back(overlay(std::move(f), edits));
+	if (!edits.empty()) sort_views(views);
+
+	constexpr size_t kMaxBytes = 8 * 1024 * 1024;
+	const auto join = [](const std::vector<std::string>& v) {
+		std::string out;
+		for (const std::string& x : v) out += (out.empty() ? "" : ", ") + x;
+		return out;
+	};
+	std::vector<std::string> lines;
+	std::set<std::string> seen;
+	size_t bytes = 0, n = 0;
+	bool truncated = false;
+	for (const View& v : views) {
+		if (!keep(v, q.filter, needle)) continue;
+		const Finding& f = v.f;
+		const size_t index = ++n;
+		const std::string line = row.render([&](const std::string& name) -> std::string {
+			if (name == "ip") return f.ip;
+			if (name == "hostname") return f.hostname;
+			if (name == "port") return std::to_string(f.port);
+			if (name == "protocol") return f.protocol;
+			if (name == "service") return f.service;
+			if (name == "title") return f.title;
+			if (name == "score") return std::to_string(f.score);
+			if (name == "level") return f.level;
+			if (name == "status") return v.status;
+			if (name == "detections") return join(f.detections);
+			if (name == "reasons") return join(f.reasons);
+			if (name == "run") return std::to_string(run.id);
+			return std::to_string(index); // n
+		});
+		if (q.unique && !seen.insert(line).second) continue;
+		if (lines.size() >= q.limit || bytes + line.size() > kMaxBytes) {
+			truncated = true;
+			break;
+		}
+		bytes += line.size() + 1;
+		lines.push_back(line);
+	}
+	const auto edge = [&](const RowTemplate& t) {
+		return t.render([&](const std::string& name) { return name == "run" ? std::to_string(run.id) : std::to_string(lines.size()); });
+	};
+	std::string text;
+	if (!q.header.empty()) text += edge(header) + "\n";
+	for (const std::string& l : lines) text += l + "\n";
+	if (!q.footer.empty()) text += edge(footer) + "\n";
+	return {{"run", run.id}, {"rows", lines.size()}, {"truncated", truncated}, {"text", text}};
 }
 
 Json Api::diff(const std::string& before, const std::string& after) const {

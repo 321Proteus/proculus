@@ -180,6 +180,12 @@ int main() {
 	// ---- a viewer reads, and nothing more
 	const std::string viewer = session("vic", "vic-password-1");
 	assert(c.Get("/api/runs", hdr(viewer))->status == 200 && c.Get("/api/dashboard", hdr(viewer))->status == 200 && c.Get("/api/scan", hdr(viewer))->status == 200);
+	{ // export needs login and the export permission; the template is applied on the server
+		assert(c.Get("/api/export?row=%7Bip%7D")->status == 401);
+		auto ex = c.Get("/api/export?row=%7Bip%7D%3A%7Bport%7D&unique=1", hdr(viewer));
+		assert(ex && ex->status == 200 && Json::parse(ex->body)["text"].get<std::string>().find("10.20.0.2:23\n") != std::string::npos);
+		assert(c.Get("/api/export?row=%7Bnope%7D", hdr(viewer))->status == 400 && c.Get("/api/export", hdr(viewer))->status == 400);
+	}
 	assert(c.Get("/api/users", hdr(viewer))->status == 403 && c.Get("/api/audit", hdr(viewer))->status == 403 && c.Get("/api/roles", hdr(viewer))->status == 403);
 	assert(c.Post("/api/scan", hdr(viewer), Json{{"targets", {"10.20.0.1"}}}.dump(), "application/json")->status == 403);
 	assert(c.Post("/api/scan/stop", hdr(viewer), "{}", "application/json")->status == 403);

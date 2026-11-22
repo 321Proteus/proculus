@@ -108,6 +108,12 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  exportBtn: 'Eksport…', exportTitle: 'Eksport w wybranym formacie', exportIntro: 'Napisz, jak ma wyglądać jedna linia dla każdej usługi (z bieżącymi filtrami). Kliknij nazwę pola, aby je wstawić.',
+  exportRow: 'Szablon wiersza', exportHeader: 'Nagłówek (opcjonalnie)', exportFooter: 'Stopka (opcjonalnie)', exportUnique: 'Bez powtórzeń (np. tylko adresy IP)', exportFields: 'Pola',
+  exportMods: 'Modyfikatory: |upper |lower |trim |csv |json |default:TEKST |max:N. Znaki specjalne: \\n \\t \\{ \\}. W nagłówku i stopce: {run} {count}.',
+  exportPreview: 'Podgląd', exportDownload: 'Pobierz plik', exportCopy: 'Kopiuj', exportCopied: 'Skopiowano', exportNone: '(brak wierszy)', exportMore: 'pierwsze wiersze; plik zawiera wszystkie',
+  exportFormat: 'Format', exportSave: 'Zapisz format', exportSaveAsk: 'Nazwa formatu (zapisywany w tej przeglądarce):', exportMine: 'Moje formaty', exportBuiltin: 'Wbudowane', exportDel: 'Usuń format',
+  fmtIps: 'Tylko adresy IP', fmtIpPort: 'adres:port', fmtLines: 'Adres, port, usługa', fmtCsv: 'CSV', fmtJsonl: 'JSON (linia na usługę)',
   presetLabel: 'Gotowy zestaw', presetNone: '— własne ustawienia —', presetHint: 'Wypełnia formularz; możesz go dalej zmienić. Co wolno skanować, i tak ustala administrator.', presetBuiltin: 'Wbudowane', presetMine: 'Moje zestawy',
   presetSave: 'Zapisz jako zestaw', presetSaveAsk: 'Nazwa zestawu (zapisywany w tej przeglądarce):', presetDelete: 'Usuń zestaw', presetSaved: 'Zapisano zestaw', presetNeedTargets: 'Wpisz najpierw cele skanu.',
   presetAddTo: 'Dodaj do zakresu i portów z zestawu:',
@@ -150,6 +156,12 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  exportBtn: 'Export…', exportTitle: 'Export in your own format', exportIntro: 'Write what one line should look like for every service (with the current filters). Click a field name to insert it.',
+  exportRow: 'Row template', exportHeader: 'Header (optional)', exportFooter: 'Footer (optional)', exportUnique: 'No repeated lines (e.g. only the IPs)', exportFields: 'Fields',
+  exportMods: 'Modifiers: |upper |lower |trim |csv |json |default:TEXT |max:N. Escapes: \\n \\t \\{ \\}. In header and footer: {run} {count}.',
+  exportPreview: 'Preview', exportDownload: 'Download file', exportCopy: 'Copy', exportCopied: 'Copied', exportNone: '(no rows)', exportMore: 'first rows; the file has them all',
+  exportFormat: 'Format', exportSave: 'Save format', exportSaveAsk: 'Format name (kept in this browser):', exportMine: 'My formats', exportBuiltin: 'Built in', exportDel: 'Delete format',
+  fmtIps: 'IPs only', fmtIpPort: 'address:port', fmtLines: 'Address, port, service', fmtCsv: 'CSV', fmtJsonl: 'JSON (a line per service)',
   presetLabel: 'Preset', presetNone: '— custom settings —', presetHint: 'Fills in the form; you can still change it. What may be scanned is decided by the administrator anyway.', presetBuiltin: 'Built in', presetMine: 'My presets',
   presetSave: 'Save to preset', presetSaveAsk: 'Preset name (kept in this browser):', presetDelete: 'Delete preset', presetSaved: 'Preset saved', presetNeedTargets: 'Enter the scan targets first.',
   presetAddTo: 'Add to the scope and ports from a preset:',
@@ -684,12 +696,115 @@ async function viewDashboard() {
 }
 
 // ---- results: services (with filters and editing), runs, edits
+// ---------------------------------------------------------------- export: the user's own text format
+// Templates are filled in by the gateway ({ip}:{port}, {service|csv} ...); the formats a user saves stay in this browser.
+const EXPORT_FIELDS = ['ip', 'port', 'protocol', 'service', 'title', 'hostname', 'score', 'level', 'status', 'detections', 'reasons', 'run', 'n'];
+const EXPORT_BUILTIN = [
+  { key: 'fmtIps', row: '{ip}', header: '', footer: '', unique: true },
+  { key: 'fmtIpPort', row: '{ip}:{port}', header: '', footer: '', unique: false },
+  { key: 'fmtLines', row: '{ip}\\t{port}/{protocol}\\t{service|default:-}', header: '', footer: '', unique: false },
+  { key: 'fmtCsv', row: '{ip|csv},{port},{service|csv},{score},{title|csv}', header: 'ip,port,service,score,title', footer: '', unique: false },
+  { key: 'fmtJsonl', row: '\\{"ip":{ip|json},"port":{port},"service":{service|json},"score":{score}\\}', header: '', footer: '', unique: false },
+];
+const exportKey = () => 'proculus.exports.' + (session.user ? session.user.username : '');
+function userExports() {
+  try { const v = JSON.parse(localStorage.getItem(exportKey()) || '[]'); return Array.isArray(v) ? v.filter((x) => x && typeof x.name === 'string' && typeof x.row === 'string') : []; } catch (e) { return []; }
+}
+function storeUserExports(list) { try { localStorage.setItem(exportKey(), JSON.stringify(list.slice(0, 50))); } catch (e) { /* ignore */ } }
+
+// `filters()` gives the current run and filters of the services list.
+function exportCard(filters) {
+  const row = el('input', { type: 'text', class: 'mono', value: '{ip}:{port}', spellcheck: 'false', autocomplete: 'off', maxlength: '500' });
+  const header = el('input', { type: 'text', class: 'mono', spellcheck: 'false', autocomplete: 'off', maxlength: '500' });
+  const footer = el('input', { type: 'text', class: 'mono', spellcheck: 'false', autocomplete: 'off', maxlength: '500' });
+  const unique = el('input', { type: 'checkbox' });
+  const preview = el('pre', { class: 'log-box', style: 'height:auto;max-height:200px;white-space:pre' });
+  const note = el('div', {});
+  let mine = userExports();
+  const sel = el('select', {});
+  const delBtn = el('button', { class: 'sec', hidden: true }, t('exportDel'));
+  const drawFormats = () => {
+    mine = userExports();
+    sel.replaceChildren(el('option', { value: '' }, '—'), el('optgroup', { label: t('exportBuiltin') }, EXPORT_BUILTIN.map((f, i) => el('option', { value: 'b' + i }, t(f.key)))),
+      mine.length ? el('optgroup', { label: t('exportMine') }, mine.map((f, i) => el('option', { value: 'm' + i }, f.name))) : null);
+  };
+  const picked = () => (sel.value[0] === 'b' ? EXPORT_BUILTIN[Number(sel.value.slice(1))] : sel.value[0] === 'm' ? mine[Number(sel.value.slice(1))] : null);
+  const query = (extra) => Object.assign({ row: row.value, header: header.value, footer: footer.value, unique: unique.checked ? '1' : '' }, filters(), extra);
+
+  let timer = null, seq = 0;
+  const refresh = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const mySeq = ++seq;
+      try {
+        const r = await api('/api/export?' + qs(query({ limit: 8 })));
+        if (mySeq !== seq) return;
+        note.replaceChildren();
+        preview.textContent = r.rows ? r.text : t('exportNone');
+        if (r.truncated) note.replaceChildren(el('p', { class: 'sub', style: 'font-size:12px' }, '… ' + t('exportMore')));
+      } catch (e) {
+        if (e instanceof LoginRequired) throw e;
+        if (mySeq !== seq) return;
+        preview.textContent = '';
+        note.replaceChildren(el('div', { class: 'err' }, e.message));
+      }
+    }, 250);
+  };
+  for (const input of [row, header, footer]) input.addEventListener('input', refresh);
+  unique.addEventListener('change', refresh);
+  sel.addEventListener('change', () => {
+    const f = picked();
+    delBtn.hidden = sel.value[0] !== 'm';
+    if (!f) return;
+    row.value = f.row; header.value = f.header || ''; footer.value = f.footer || ''; unique.checked = !!f.unique;
+    refresh();
+  });
+  delBtn.addEventListener('click', () => { const f = picked(); if (f) { storeUserExports(mine.filter((x) => x.name !== f.name)); drawFormats(); sel.value = ''; delBtn.hidden = true; } });
+  drawFormats();
+
+  const chips = EXPORT_FIELDS.map((f) => el('button', { class: 'chip', type: 'button', onclick: () => {
+    const a = row.selectionStart == null ? row.value.length : row.selectionStart, b = row.selectionEnd == null ? a : row.selectionEnd;
+    row.value = row.value.slice(0, a) + '{' + f + '}' + row.value.slice(b);
+    row.focus(); row.setSelectionRange(a + f.length + 2, a + f.length + 2); refresh();
+  } }, '{' + f + '}'));
+
+  const download = async () => {
+    try {
+      const r = await api('/api/export?' + qs(query({})));
+      downloadText('proculus-run-' + r.run + '.txt', r.text);
+    } catch (e) { if (e instanceof LoginRequired) throw e; note.replaceChildren(el('div', { class: 'err' }, e.message)); }
+  };
+  const copy = async () => {
+    try {
+      const r = await api('/api/export?' + qs(query({})));
+      await navigator.clipboard.writeText(r.text);
+      note.replaceChildren(el('div', { class: 'ok-note' }, t('exportCopied') + ' (' + r.rows + ')'));
+    } catch (e) { if (e instanceof LoginRequired) throw e; note.replaceChildren(el('div', { class: 'err' }, e.message)); }
+  };
+  const saveFormat = () => {
+    const name = (window.prompt(t('exportSaveAsk'), sel.value[0] === 'm' ? picked().name : '') || '').trim().slice(0, 60);
+    if (!name) return;
+    storeUserExports(userExports().filter((x) => x.name !== name).concat([{ name, row: row.value, header: header.value, footer: footer.value, unique: unique.checked }]));
+    drawFormats(); sel.value = 'm' + (mine.length - 1); delBtn.hidden = false;
+  };
+
+  refresh();
+  return el('div', { class: 'card' }, el('h3', {}, t('exportTitle')), el('p', { class: 'sub' }, t('exportIntro')),
+    field(t('exportFormat'), '', el('div', { class: 'toolbar', style: 'margin:0' }, sel, delBtn)),
+    field(t('exportRow'), '', row), el('div', { class: 'toolbar' }, el('span', { class: 'sub', style: 'font-size:12px' }, t('exportFields') + ':'), ...chips),
+    el('div', { class: 'grid-2' }, field(t('exportHeader'), '', header), field(t('exportFooter'), '', footer)),
+    el('label', { class: 'check' }, unique, ' ' + t('exportUnique')), el('p', { class: 'sub', style: 'font-size:12px' }, t('exportMods')),
+    el('h3', { style: 'margin-top:12px' }, t('exportPreview')), preview, note,
+    el('div', { class: 'toolbar' }, el('button', { onclick: download }, '⬇ ' + t('exportDownload')), el('button', { class: 'sec', onclick: copy }, t('exportCopy')), el('button', { class: 'sec', onclick: saveFormat }, t('exportSave'))));
+}
+
 async function viewServices(params) {
   const runs = await api('/api/runs');
   if (!runs.length) return el('div', { class: 'card empty' }, el('h3', {}, t('noRuns')), el('p', {}, t('noRunsHint')));
   const state = { run: params.run || 'latest', q: params.q || '', min: params.min || '0', offset: Number(params.offset || 0), hide: params.hide === '1', edited: params.edited === '1' };
   const out = el('div', {});
   const table = el('div', {});
+  const exportBox = el('div', {});
 
   async function load() {
     table.replaceChildren(el('p', { class: 'sub' }, t('loading')));
@@ -714,7 +829,9 @@ async function viewServices(params) {
   const hideBox = el('input', { type: 'checkbox', checked: state.hide, onchange: (e) => { state.hide = e.target.checked; state.offset = 0; load(); } });
   const editedBox = el('input', { type: 'checkbox', checked: state.edited, onchange: (e) => { state.edited = e.target.checked; state.offset = 0; load(); } });
   out.append(el('div', { class: 'card' }, el('h3', {}, t('resultsTitle')),
-    el('div', { class: 'toolbar' }, search, minSel, runSel, el('label', { class: 'check', style: 'margin:0' }, hideBox, ' ' + t('hideIgnored')), el('label', { class: 'check', style: 'margin:0' }, editedBox, ' ' + t('onlyEdited'))), table));
+    el('div', { class: 'toolbar' }, search, minSel, runSel, el('label', { class: 'check', style: 'margin:0' }, hideBox, ' ' + t('hideIgnored')), el('label', { class: 'check', style: 'margin:0' }, editedBox, ' ' + t('onlyEdited')),
+      can('export') ? el('button', { class: 'sec', onclick: () => { if (exportBox.firstChild) exportBox.replaceChildren(); else exportBox.append(exportCard(() => ({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, hide: state.hide ? '1' : '', edited: state.edited ? '1' : '' }))); } }, t('exportBtn')) : null),
+    exportBox, table));
   load();
   return out;
 }

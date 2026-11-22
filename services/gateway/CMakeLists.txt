@@ -1,4 +1,4 @@
-add_library(gateway_core STATIC src/demo.cpp src/api.cpp src/server.cpp src/scan_control.cpp src/token_guard.cpp src/reset_cli.cpp)
+add_library(gateway_core STATIC src/demo.cpp src/api.cpp src/server.cpp src/scan_control.cpp src/token_guard.cpp src/reset_cli.cpp src/export_format.cpp)
 target_include_directories(gateway_core PUBLIC src)
 target_include_directories(gateway_core SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/third_party/httplib)
 target_link_libraries(gateway_core PUBLIC planner_core scanner_core scheduler_core proculus_timing proculus_results proculus_insight proculus_web proculus_edits differ_core runner_core)
@@ -25,6 +25,10 @@ if(BUILD_TESTING)
 	add_executable(test_api tests/test_api.cpp)
 	target_link_libraries(test_api PRIVATE gateway_core)
 	add_test(NAME gateway_api COMMAND test_api)
+
+	add_executable(test_export_format tests/test_export_format.cpp)
+	target_link_libraries(test_export_format PRIVATE gateway_core)
+	add_test(NAME gateway_export_format COMMAND test_export_format)
 
 	add_executable(test_reset tests/test_reset.cpp)
 	target_link_libraries(test_reset PRIVATE gateway_core)

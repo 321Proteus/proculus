@@ -150,6 +150,18 @@ Requests must be JSON, so a web page on another site cannot trigger a scan by
 posting a form. With login, the `scan.run` permission replaces the token.
 In Docker: `docker-compose.scans.yml` (see its header).
 
+**Your own output format.** Results → Export… writes the services (with the current run and
+filters) as text through a template of your own, with placeholders such as `{ip}`, `{port}`,
+`{service}`, `{title}`, `{level}`, `{score}`, `{detections}`: `{ip}:{port}` gives `10.0.0.5:22`,
+`{ip}` with "no repeated lines" gives only the addresses. Modifiers go after a bar:
+`{service|csv}` (quoted for CSV, with spreadsheet formulas defused), `|json`, `|upper`, `|lower`,
+`|trim`, `|default:-`, `|max:20`; `\n`, `\t`, `\{`, `\}` are escapes; an optional header and footer
+may use `{run}` and `{count}`. There are built-in formats (IPs only, address:port, CSV, JSON lines)
+and users can save their own (kept in the browser). The template is filled in by the gateway
+(`GET /api/export`, needs the `export` permission); values from scanned machines have control
+characters replaced by spaces, so they can not add lines or columns, and anything the template does
+not understand is an error, not silently dropped.
+
 The UI service holds no data and decides nothing; the gateway enforces logins and
 roles. The proxy only forwards GET requests to plain `/api/...` paths, POST only
 to a fixed list of routes (scans, login, users, roles), to the one configured

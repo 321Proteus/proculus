@@ -1,6 +1,7 @@
 #undef NDEBUG
 #include <unistd.h>
 
+#include <algorithm>
 #include <cassert>
 #include <filesystem>
 
@@ -76,6 +77,55 @@ int main() {
 	store.save(run("2026-11-22T10:00:00Z", {host("10.0.0.1", {svc(22, "ssh", "OpenSSH", "8.2")}), host("10.0.0.2", {svc(23, "telnet")}, "old-switch")}));
 	store.save(run("2026-11-22T12:00:00Z", {host("10.0.0.1", {svc(22, "ssh", "OpenSSH", "8.2"), admin_web(443, "phpMyAdmin <script>alert(1)</script>")}, "db-admin"),
 		host("10.0.0.9", {svc(6379, "redis")})}));
+
+	// ---- export through a template: only what the template says
+	{
+		ExportQuery q;
+		q.row = "{ip}:{port}";
+		q.filter.min_score = 0;
+		const Json all = api.export_text("latest", q);
+		assert(all["rows"] == 3 && !all["truncated"].get<bool>() && all["run"] == 2);
+		const std::string text = all["text"];
+		assert(text.find("10.0.0.1:22\n") != std::string::npos && text.find("10.0.0.1:443\n") != std::string::npos && text.find("10.0.0.9:6379\n") != std::string::npos);
+		assert(std::count(text.begin(), text.end(), '\n') == 3 && text.find("OpenSSH") == std::string::npos); // nothing but the template
+		// only the addresses, each once
+		q.row = "{ip}";
+		q.unique = true;
+		const Json ips = api.export_text("latest", q);
+		const std::string ip_text = ips["text"];
+		assert(ips["rows"] == 2 && std::count(ip_text.begin(), ip_text.end(), '\n') == 2);
+		// header, footer, CSV quoting; a host name that is missing shows the default
+		q = ExportQuery();
+		q.row = "{ip|csv},{port},{hostname|default:-},{service|csv},{title|csv|max:12}";
+		q.header = "ip,port,host,service,title ({count} rows, run {run})";
+		q.footer = "# end";
+		q.filter.text = "10.0.0.1";
+		const std::string csv = api.export_text("latest", q)["text"];
+		assert(csv.find("ip,port,host,service,title (2 rows, run 2)\n") == 0 && csv.rfind("# end\n") == csv.size() - 6);
+		assert(csv.find("10.0.0.1,443,db-admin,nginx 1.24.0,phpMyAdmin <\n") != std::string::npos);
+		// older run, filters, limit
+		q = ExportQuery();
+		q.row = "{n} {ip} {level|upper}";
+		assert(api.export_text("1", q)["rows"] == 2);
+		q.limit = 1;
+		const Json one = api.export_text("latest", q);
+		assert(one["rows"] == 1 && one["truncated"] == true && std::string(one["text"]).find("1 ") == 0);
+		// bad templates are refused with the reason
+		for (const char* bad : {"", "{nope}", "{ip", "ip}", "{ip|shout}", "{port|max:x}", "{ip|default}", "\\q", "{ip|upper:1}"}) {
+			ExportQuery b;
+			b.row = bad;
+			assert(fails(400, [&] { api.export_text("latest", b); }));
+		}
+		ExportQuery h;
+		h.row = "{ip}";
+		h.header = "{port}"; // only {run} and {count} in a header
+		assert(fails(400, [&] { api.export_text("latest", h); }));
+		h = ExportQuery();
+		h.row = "{ip}";
+		h.limit = 0;
+		assert(fails(400, [&] { api.export_text("latest", h); }));
+		assert(fails(404, [&] { api.export_text("9", ExportQuery{{}, "{ip}", "", "", false, 10}); }));
+	}
 
 	// ---- runs, newest first
 	const Json runs = api.runs();
