@@ -9,6 +9,7 @@
 #include <string>
 
 #include "demo.hpp"
+#include "serve.hpp"
 #include "proculus/version.h"
 
 enum {
@@ -38,6 +39,7 @@ static const option long_opts[] = {
 
 static void usage(const char* argv0) {
 	std::cerr << "usage: " << argv0 << " [options]\n"
+			  << "       " << argv0 << " serve [options]   web UI over saved runs (see serve --help)\n"
 			  << "Runs the scan pipeline against an emulated network (virtual "
 				 "time).\n"
 			  << "  --rounds N       scan rounds to run (default 3)\n"
@@ -69,6 +71,7 @@ static double to_double(const char* s, const char* what) {
 }
 
 int main(int argc, char** argv) {
+	if (argc > 1 && std::string(argv[1]) == "serve") return proculus::serve_command(argc - 1, argv + 1);
 	proculus::DemoConfig cfg;
 	try {
 		opterr = 0;
