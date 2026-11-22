@@ -99,6 +99,24 @@ services:
       target: scheduler
     profiles: ["tools"]
 
+  # Real scans: discovery and services with nmap, optional web probing and signatures,
+  # results saved as runs in the shared volume (read by the web UI, differ, exporter):
+  #   docker compose run --rm runner --scope 10.0.0.0/24 --allowed-ports 22,80,443 --store /data --web 10.0.0.0/24
+  #   docker compose run --rm runner --dry-run --scope 10.0.0.0/16 --allowed-ports 22,80,443 10.0.0.0/16
+  # Scheduled, with a window and a frequency:
+  #   docker compose run --rm runner --scope ... --allowed-ports ... --store /data --web \
+  #       --window 22:00-06:00 --interval 24h --rounds 0 10.0.0.0/16
+  # Raw-socket scans (SYN, ICMP ping: better host discovery) need root in the container:
+  #   docker compose run --rm --user root runner --privileged ...
+  # Only scan networks you are authorised to scan.
+  runner:
+    build:
+      context: .
+      target: runner
+    volumes:
+      - results:/data
+    profiles: ["tools"]
+
   scan-worker:
     build:
       context: .

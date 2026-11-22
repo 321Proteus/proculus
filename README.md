@@ -15,6 +15,37 @@ cmake -S . -B build && cmake --build build
 
 Or with Docker: `docker compose up --build`
 
+## Scanning a real network
+
+`runner` runs real scans with nmap: it reads targets (IPs, CIDRs, ranges, domains),
+plans balanced chunks, finds the hosts that answer, identifies their services,
+optionally probes the web services and detects technologies, and saves the round
+as a run that the web UI, `differ` and `exporter` read.
+
+```sh
+# what would it do, and roughly how long? (scans nothing)
+./build/services/runner/runner --dry-run --scope 10.0.0.0/16 --allowed-ports 22,80,443,8080 10.0.0.0/16
+
+# a scan now, saved as a run, with web probing and detections
+./build/services/runner/runner --scope 10.0.0.0/24 --allowed-ports 22,80,443,8080 \
+    --workers 4 --rate 200 --web --store results 10.0.0.0/24 -x 10.0.0.1
+
+# every night in a window, every 24 hours, until stopped; a round that does not fit
+# the window is stopped when it closes and resumed in the next one
+./build/services/runner/runner --scope 10.0.0.0/16 --allowed-ports 22,80,443,8080 \
+    --window 22:00-06:00 --interval 24h --rounds 0 --web --store results -t targets.txt
+```
+
+Safety: `--scope` and `--allowed-ports` are required and are hard limits. Every
+nmap command passes the same checks (nothing outside the scope or the allowed ports,
+reserved addresses removed, rate and timing ceilings, no shell), domains are resolved
+and every address must be in scope, and web probing has its own gates. Only the
+packets-per-second you set are used (`--workers` x `--rate` in total). Unprivileged
+scans use TCP connects; `--privileged` (root or `CAP_NET_RAW`) adds SYN scans and
+ICMP ping for better host discovery. A scan that cannot finish (a chunk fails
+repeatedly, or you stop it with Ctrl-C) saves nothing, so a half-scanned network is
+never mistaken for hosts that disappeared. Only scan networks you are authorised to scan.
+
 ## Try it without a network
 
 The gateway currently runs a demonstration of the scan pipeline against an
@@ -74,10 +105,29 @@ The priority (0-100) combines what the signatures found (their own interest,
 scaled by confidence) with what is exposed at all: telnet, databases, remote
 desktop and similar are ranked even when no signature matched.
 
+**Starting scans from the UI.** The "New scan" page (targets, exclusions, ports,
+workers, rate, timing, web probing, a plan preview, live progress, stop) is off
+unless the operator turns it on when starting the gateway. The limits are fixed
+there; the form can only choose targets inside the scope and values under the
+ceilings, and one scan runs at a time. It uses the same runner as the command line,
+with the same safety checks.
+
+```sh
+export PROCULUS_CONTROL_TOKEN=choose-a-long-secret        # else a random one is printed at startup
+./build/services/gateway/gateway serve --store results --enable-scans \
+    --scan-scope 192.168.1.0/24 --scan-ports 22,80,443,8080 --scan-max-workers 2 --scan-max-rate 100
+./build/services/ui/ui
+```
+
+Until there are user accounts, starting, planning and stopping scans need that
+control token (entered in the form, sent as `X-Proculus-Token`); wrong guesses are
+limited. Requests must be JSON, so a web page on another site cannot trigger a scan
+by posting a form. In Docker: `docker-compose.scans.yml` (see its header).
+
 The UI service holds no data and decides nothing; the gateway will be where
 logins and roles are enforced. The proxy only forwards GET requests to plain
-`/api/...` paths, to the one configured gateway, and only passes back JSON of a
-limited size. There is no login yet, so both services are read-only, listen on
+`/api/...` paths, to the one configured gateway (POST only to the three scan routes),
+and only passes back JSON of a limited size. There is no login yet, so both services are read-only, listen on
 the loopback interface only, answer only to local host names (`--allow-host NAME`
 adds more, against DNS rebinding), and the pages are sent with a strict
 Content-Security-Policy. Titles and banners come from scanned hosts and are
@@ -164,6 +214,7 @@ stored as `name=<redacted>; attributes`.
 - `libs/db` – Postgres access, field encryption, migrations
 - `services/planner` – target list to balanced, spread-out chunks
 - `services/scan-worker` – validated nmap runs, XML parsing, emulated network
+- `services/runner` – real scans: planning, nmap workers, scan windows, web probing, saved runs
 - `services/scheduler` – scan windows, frequency, overrun handling
 - `services/exporter` – lists saved runs and dumps them as text, JSON or CSV
 - `services/differ` – compares runs and follows hosts and services over time

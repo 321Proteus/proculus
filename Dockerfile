@@ -25,7 +25,8 @@ RUN useradd --system --no-create-home --shell /usr/sbin/nologin proculus \
     && mkdir /data && chown proculus:proculus /data
 
 FROM runtime-base AS gateway
-RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 \
+# nmap, libssl and libpcre2 are for scans started from the web UI (off unless --enable-scans)
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 nmap libssl3 libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/services/gateway/gateway /usr/local/bin/gateway
 USER proculus
@@ -35,6 +36,13 @@ FROM runtime-base AS ui
 COPY --from=build /src/build/services/ui/ui /usr/local/bin/ui
 USER proculus
 ENTRYPOINT ["ui"]
+
+FROM runtime-base AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends nmap libexpat1 libssl3 libpcre2-8-0 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/build/services/runner/runner /usr/local/bin/runner
+USER proculus
+ENTRYPOINT ["runner"]
 
 FROM runtime-base AS planner
 COPY --from=build /src/build/services/planner/planner /usr/local/bin/planner
