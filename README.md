@@ -73,6 +73,7 @@ run: `DIR/run-000001.json`, `run-000002.json`, ... Read them with `exporter`:
 ./build/services/exporter/exporter --store results show latest                  # readable text
 ./build/services/exporter/exporter --store results show 2 --format json
 ./build/services/exporter/exporter --store results show 2 --format csv --output run2.csv
+./build/services/exporter/exporter --store results show latest --format defectdojo --min-level low --output dojo.json   # DefectDojo import file
 ```
 
 With Docker the gateway saves to the shared `results` volume:
@@ -101,8 +102,8 @@ telemetry on the first tab. Differences are deliberate: the live panels are upda
 of being rebuilt (no flicker; the log keeps its scroll position unless you are at the bottom), the
 guided tour ("Przewodnik") measures its target only after the smooth scroll has stopped and is
 repositioned on resize, tooltips appear at the pointer, status dots actually pulse, and all motion
-is off for users who prefer reduced motion. Tab 5 (schedule and DefectDojo) is a placeholder
-for now.
+is off for users who prefer reduced motion. Tab 5 holds the scan schedules (below); its DefectDojo part is still a placeholder
+(the exporter can already write a DefectDojo import file, see below).
 
 A dashboard over the saved runs (Polish or English): size of the latest run and
 what changed since the previous one, services ranked by priority with the
@@ -198,6 +199,25 @@ probing and technology detection" is ticked (nothing is sent to those services; 
 signatures are only used on web services). The detection shows in Results as a technology chip,
 raises the interest score, and can be exported (`{other}`). Add `25565` to the allowed ports to
 scan for it. The simulation has two Minecraft servers (`mc1.lab`, `mc2.lab`) to try it on.
+
+**Recurring scans.** Tab 5 keeps schedules: a scan request (the same fields as the New scan form), a daily
+window (it may cross midnight, `22:00` to `06:00`), the weekdays a window may start on, a fixed UTC offset
+and how often (every 5 minutes to 366 days). The gateway looks at them every 15 seconds and starts one when
+its interval has passed since the last start and a window with enough time left is open. They are kept in
+`schedules.json` next to the scan settings (0600), so they survive a restart. A schedule has no authority of
+its own: every scan goes through the same policy as one started by hand (Admin → Scanning: scope, ports,
+limits, scans switched on), so tightening the policy stops a schedule that no longer fits; it is then shown as
+*refused* and tried again after its interval. One scan runs at a time (a due schedule waits while another scan
+runs); a scan that does not fit its window is paused when it closes and resumed in the next one; a run missed
+while the gateway was down is made up once, not once per missed day. Everyone with `data.read` sees the
+schedules, `config.manage` changes them, `scan.run` runs one now (whatever its window); changes and scheduled
+scans are written to the audit log. Without login the changes need the control token. The offset is fixed
+(no daylight saving), so a nightly window moves by an hour twice a year if you do not adjust it.
+
+```sh
+curl -X POST http://127.0.0.1:8081/api/schedules -H 'Content-Type: application/json' -H "X-Proculus-Token: $TOKEN" \
+  -d '{"name":"nightly","request":{"targets":["10.0.0.0/24"],"web":true},"window":"22:00-06:00","days":"mon-fri","utc_offset":"+01:00","interval":"24h"}'
+```
 
 **Importing scan settings.** "Import scan settings" on the New scan card loads a JSON file
 into the form (nothing is started; you can still change everything). The scheme is fixed

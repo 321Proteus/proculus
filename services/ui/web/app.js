@@ -154,7 +154,18 @@ Object.assign(TEXTS.pl, {
   stabilityTitle: 'Monitor stabilności hostów (okresowa dostępność w czasie)', stateCol: 'Stan', sightingsCol: 'Wykrycia', lastRunCol: 'Ostatni skan', allStable: 'Wszystkie hosty odpowiadają stabilnie.',
   resultsTitle: 'Wykryte usługi i artefakty', sub_services: 'Usługi', sub_runs: 'Skany', sub_edits: 'Edycje',
   soonTitle: 'W przygotowaniu',
-  soonSchedule: 'Harmonogram cyklicznych skanów (okno czasowe, częstotliwość) i eksport obserwacji do DefectDojo. Na razie: runner --window --interval oraz scheduler.',
+  soonDojo: 'Wysyłanie wyników do DefectDojo. Na razie: exporter show latest --format defectdojo zapisuje plik do importu (Generic Findings Import).',
+  schedIntro: 'Cykliczne skany: brama uruchamia skan, gdy minął odstęp od poprzedniego startu i otwarte jest okno czasowe. Skan przechodzi te same kontrole co skan ręczny (zakres i porty z Administracja → Skanowanie), więc harmonogram nie może wyjść poza dozwolone limity. Skan, który nie zmieści się w oknie, jest wstrzymywany i wznawiany w następnym.',
+  schedScansOff: 'Skany są wyłączone (Administracja → Skanowanie): harmonogramy nie uruchomią niczego.', schedNone: 'Brak harmonogramów.',
+  schedNote: 'Czasy w UTC. Strefa to stałe przesunięcie względem UTC (bez czasu letniego). Pominięty termin (brama była wyłączona) jest nadrabiany jednym skanem, gdy okno jest otwarte.',
+  cancel: 'Anuluj', schedAdd: 'Nowy harmonogram', schedEdit: 'Edycja', schedSave: 'Zapisz harmonogram', schedName: 'Nazwa', schedTargets: 'Cele', schedWindow: 'Okno', schedFrequency: 'Częstotliwość', schedLast: 'Ostatni skan', schedNext: 'Następny',
+  schedOffset: 'Przesunięcie względem UTC', schedFrom: 'Okno od', schedTo: 'Okno do', schedDaysLabel: 'Dni, w których okno może się zacząć', schedEvery: 'co', schedEveryDay: 'codziennie',
+  schedWindowHelp: 'Okno może przechodzić przez północ (22:00 do 06:00). Takie same godziny oznaczają okno otwarte całą dobę.',
+  schedExclusions: 'Wyłączenia', schedPorts: 'Porty', schedWorkers: 'Procesy nmap', schedRate: 'Pakiety/s na proces', schedTiming: 'Timing (0-4)', schedWeb: 'Sondowanie WWW', schedPrivileged: 'Uprzywilejowany (raw sockets)',
+  schedSeconds: 's', schedMinutes: 'min', schedHours: 'godz.', schedDays: 'dni', schedNever: 'jeszcze nie', schedOff: 'wyłączony', schedRunningNow: 'trwa', schedDueNow: 'teraz', schedUpcoming: 'Najbliższe okna',
+  schedRunNow: 'Uruchom teraz', schedRunConfirm: 'Uruchomić ten skan teraz, niezależnie od okna?', schedDelete: 'Usuń', schedDeleteConfirm: 'Usunąć harmonogram',
+  schedStatus_ok: 'zakończony', schedStatus_running: 'trwa', schedStatus_stopped: 'zatrzymany', schedStatus_failed: 'błąd', schedStatus_refused: 'odrzucony',
+  day_mon: 'pon', day_tue: 'wt', day_wed: 'śr', day_thu: 'czw', day_fri: 'pt', day_sat: 'sob', day_sun: 'nd',
   gateSub: 'Attack Surface Intelligence', gateBadge: 'Sesja z tokenem • role RBAC', loginBtn: 'Zaloguj do konsoli Proculus', setupSub: 'Inicjalizacja • pierwsze uruchomienie',
   tourTitle: 'PROCULUS — Przewodnik', tourStep: 'Krok', tourOf: 'z', tourSkip: 'Pomiń', tourPrev: '◀ Wstecz', tourNext: 'Dalej ▶', tourFinish: 'Zakończ ✔',
   tour1: 'To cztery główne wskaźniki ostatniego skanu: aktywne hosty, wykryte usługi, panele admina / staging i hosty niestabilne. Najedź kursorem na kartę, aby zobaczyć objaśnienie.',
@@ -215,7 +226,18 @@ Object.assign(TEXTS.en, {
   stabilityTitle: 'Host stability monitor (availability over time)', stateCol: 'State', sightingsCol: 'Sightings', lastRunCol: 'Last run', allStable: 'All hosts answer reliably.',
   resultsTitle: 'Detected services and artefacts', sub_services: 'Services', sub_runs: 'Runs', sub_edits: 'Edits',
   soonTitle: 'Coming soon',
-  soonSchedule: 'A schedule of recurring scans (time window, frequency) and exporting observations to DefectDojo. For now: runner --window --interval, and the scheduler.',
+  soonDojo: 'Sending results to DefectDojo. For now: exporter show latest --format defectdojo writes a file to import (Generic Findings Import).',
+  schedIntro: 'Recurring scans: the gateway starts a scan when its interval has passed since the last start and a time window is open. A scan goes through the same checks as one started by hand (the scope and ports of Admin → Scanning), so a schedule can never go beyond the allowed limits. A scan that does not fit its window is paused and resumed in the next one.',
+  schedScansOff: 'Scans are switched off (Admin → Scanning): schedules will not start anything.', schedNone: 'No schedules yet.',
+  schedNote: 'Times are UTC. The time zone is a fixed offset from UTC (no daylight saving). A missed run (the gateway was down) is made up with one scan when a window is open.',
+  cancel: 'Cancel', schedAdd: 'New schedule', schedEdit: 'Editing', schedSave: 'Save schedule', schedName: 'Name', schedTargets: 'Targets', schedWindow: 'Window', schedFrequency: 'Frequency', schedLast: 'Last scan', schedNext: 'Next',
+  schedOffset: 'Offset from UTC', schedFrom: 'Window from', schedTo: 'Window to', schedDaysLabel: 'Days a window may start on', schedEvery: 'every', schedEveryDay: 'every day',
+  schedWindowHelp: 'A window may cross midnight (22:00 to 06:00). The same time twice means the window is open all day.',
+  schedExclusions: 'Exclusions', schedPorts: 'Ports', schedWorkers: 'nmap processes', schedRate: 'Packets/s per process', schedTiming: 'Timing (0-4)', schedWeb: 'Web probing', schedPrivileged: 'Privileged (raw sockets)',
+  schedSeconds: 's', schedMinutes: 'min', schedHours: 'h', schedDays: 'days', schedNever: 'not yet', schedOff: 'off', schedRunningNow: 'running', schedDueNow: 'now', schedUpcoming: 'Upcoming windows',
+  schedRunNow: 'Run now', schedRunConfirm: 'Run this scan now, whatever its window?', schedDelete: 'Delete', schedDeleteConfirm: 'Delete schedule',
+  schedStatus_ok: 'finished', schedStatus_running: 'running', schedStatus_stopped: 'stopped', schedStatus_failed: 'failed', schedStatus_refused: 'refused',
+  day_mon: 'Mon', day_tue: 'Tue', day_wed: 'Wed', day_thu: 'Thu', day_fri: 'Fri', day_sat: 'Sat', day_sun: 'Sun',
   gateSub: 'Attack Surface Intelligence', gateBadge: 'Token sessions • RBAC roles', loginBtn: 'Sign in to the Proculus console', setupSub: 'Initialisation • first run',
   tourTitle: 'PROCULUS — Guide', tourStep: 'Step', tourOf: 'of', tourSkip: 'Skip', tourPrev: '◀ Back', tourNext: 'Next ▶', tourFinish: 'Finish ✔',
   tour1: 'The four main figures of the latest scan: active hosts, detected services, admin panels / staging and unstable hosts. Hover a card for an explanation.',
@@ -1111,8 +1133,115 @@ async function viewSignatures() {
       el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['sigId', 'sigName', 'category', 'sigInterest', 'source', 'status', 'sigTags'].map((k) => el('th', {}, t(k))))), table))));
 }
 
-function viewSoon(textKey, titleKey) {
-  return () => el('div', { class: 'card' }, el('h3', {}, t(titleKey)), el('div', { class: 'empty' }, el('div', { style: 'font-size:34px' }, '🛠'), el('b', {}, t('soonTitle')), el('p', {}, t(textKey))));
+// ---------------------------------------------------------------- schedule: recurring scans
+// The gateway starts a schedule's scan when it is due (interval passed, window open) through the same checks as a scan
+// started by hand, so a schedule can never go beyond what Admin > Scanning allows. Times are shown in UTC.
+const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const browserOffset = () => { const m = -new Date().getTimezoneOffset(), a = Math.abs(m); return (m < 0 ? '-' : '+') + String(Math.floor(a / 60)).padStart(2, '0') + ':' + String(a % 60).padStart(2, '0'); };
+const intervalParts = (text) => { const m = /^(\d+)([smhd])$/.exec(text || ''); if (!m) return { n: '1', unit: 'd' }; return m[2] === 's' ? { n: String(Math.max(5, Math.round(+m[1] / 60))), unit: 'm' } : { n: m[1], unit: m[2] }; };
+const daysOf = (text) => (text === 'all' ? WEEKDAYS : text.split(','));
+const lineList = (text) => text.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
+
+async function viewSchedule() {
+  const data = await api('/api/schedules');
+  const manage = can('config.manage'), runnable = can('scan.run');
+  const message = el('div', {});
+  const done = async (fn) => {
+    message.replaceChildren();
+    try { await fn(); render(); } catch (e) { if (e instanceof LoginRequired) throw e; message.replaceChildren(el('div', { class: 'err' }, e.message)); }
+  };
+  const statusBadge = (l) => {
+    if (!l || !l.status) return el('span', { class: 'badge b-gray' }, t('schedNever'));
+    const cls = { ok: 'b-green', running: 'b-blue', stopped: 'b-gray', failed: 'b-red', refused: 'b-warn' }[l.status] || 'b-gray';
+    return el('span', { class: 'badge ' + cls, title: l.message || '' }, t('schedStatus_' + l.status));
+  };
+
+  // ---- the form (add and change)
+  let editing = null;
+  const f = {
+    name: el('input', { type: 'text', maxlength: '80', autocomplete: 'off' }),
+    targets: el('textarea', { rows: 3, spellcheck: 'false', placeholder: '10.0.0.0/24\nexample.com' }),
+    exclusions: el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false' }),
+    ports: el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: '22,80,443' }),
+    workers: el('input', { type: 'number', min: '1', max: '64', value: '2' }),
+    rate: el('input', { type: 'number', min: '1', max: '100000', value: '100' }),
+    timing: el('input', { type: 'number', min: '0', max: '4', value: '3' }),
+    web: el('input', { type: 'checkbox' }),
+    privileged: el('input', { type: 'checkbox' }),
+    from: el('input', { type: 'time', value: '22:00' }),
+    to: el('input', { type: 'time', value: '06:00' }),
+    offset: el('input', { type: 'text', value: browserOffset(), size: '7', autocomplete: 'off' }),
+    n: el('input', { type: 'number', min: '1', max: '366', value: '1', style: 'width:80px' }),
+    unit: el('select', { style: 'width:auto' }, [['m', 'schedMinutes'], ['h', 'schedHours'], ['d', 'schedDays']].map(([v, k]) => el('option', { value: v, selected: v === 'd' }, t(k)))),
+    enabled: el('input', { type: 'checkbox', checked: true }),
+  };
+  const dayBoxes = WEEKDAYS.map((d) => ({ d, box: el('input', { type: 'checkbox', checked: true }) }));
+  const formTitle = el('h3', {}, t('schedAdd'));
+  const saveBtn = el('button', {}, t('schedSave'));
+  const cancelBtn = el('button', { class: 'sec', hidden: true }, t('cancel'));
+  const fill = (s) => {
+    editing = s ? s.id : null;
+    const r = s ? s.request : { targets: [], exclusions: [], ports: '', workers: 2, rate: 100, timing: 3, web: false, privileged: false };
+    f.name.value = s ? s.name : '';
+    f.targets.value = r.targets.join('\n'); f.exclusions.value = r.exclusions.join(', '); f.ports.value = r.ports;
+    f.workers.value = r.workers; f.rate.value = r.rate; f.timing.value = r.timing; f.web.checked = r.web; f.privileged.checked = r.privileged;
+    const w = s ? s.window.split('-') : ['22:00', '06:00'];
+    f.from.value = w[0]; f.to.value = w[1];
+    f.offset.value = s ? s.utc_offset : browserOffset();
+    const iv = intervalParts(s ? s.interval : '1d'); f.n.value = iv.n; f.unit.value = iv.unit;
+    const days = s ? daysOf(s.days) : WEEKDAYS;
+    dayBoxes.forEach(({ d, box }) => { box.checked = days.includes(d); });
+    f.enabled.checked = s ? s.enabled : true;
+    formTitle.textContent = s ? t('schedEdit') + ': ' + s.name : t('schedAdd');
+    cancelBtn.hidden = !s;
+  };
+  cancelBtn.addEventListener('click', () => fill(null));
+  const body = () => ({
+    name: f.name.value.trim(),
+    request: { targets: lineList(f.targets.value), exclusions: lineList(f.exclusions.value), ports: f.ports.value.trim(), workers: +f.workers.value, rate: +f.rate.value, timing: +f.timing.value, web: f.web.checked, privileged: f.privileged.checked },
+    window: f.from.value + '-' + f.to.value,
+    days: dayBoxes.filter((x) => x.box.checked).map((x) => x.d).join(',') || 'none',
+    utc_offset: f.offset.value.trim(),
+    interval: f.n.value + f.unit.value,
+    enabled: f.enabled.checked,
+  });
+  saveBtn.addEventListener('click', () => done(() => (editing ? post('/api/schedules/update', Object.assign({ id: editing }, body())) : post('/api/schedules', body()))));
+
+  // ---- the list
+  const rows = data.schedules.map((s) => {
+    const tg = s.request.targets;
+    const nextText = !s.enabled ? t('schedOff') : s.running ? t('schedRunningNow') : !s.next_run ? '—' : (Date.parse(s.next_run) <= Date.parse(data.now) ? t('schedDueNow') : when(s.next_run));
+    const windows = (s.windows || []).map((w) => when(w.start) + ' → ' + when(w.end)).join('\n');
+    return el('tr', {},
+      el('td', {}, el('b', {}, s.name)),
+      el('td', { class: 'mono', title: tg.join('\n') }, tg.slice(0, 2).join(', ') + (tg.length > 2 ? ' +' + (tg.length - 2) : '') + (s.request.web ? ' · web' : '')),
+      el('td', { title: windows ? t('schedUpcoming') + ':\n' + windows : '' }, s.window + ' ', el('span', { class: 'sub' }, s.days === 'all' ? t('schedEveryDay') : s.days.split(',').map((d) => t('day_' + d)).join(' '), ' · UTC' + s.utc_offset)),
+      el('td', {}, t('schedEvery') + ' ' + s.interval.replace(/(\d+)([smhd])/, (m, n, u) => n + ' ' + t({ s: 'schedSeconds', m: 'schedMinutes', h: 'schedHours', d: 'schedDays' }[u]))),
+      el('td', {}, statusBadge(s.last), s.last && s.last.started ? el('div', { class: 'sub', style: 'font-size:11.5px' }, when(s.last.started)) : null, s.last && s.last.run_id ? el('div', { class: 'sub', style: 'font-size:11.5px' }, t('run') + ' #' + s.last.run_id) : null),
+      el('td', {}, nextText),
+      el('td', {}, runnable ? el('button', { class: 'sec', onclick: () => { if (window.confirm(t('schedRunConfirm'))) done(() => post('/api/schedules/run', { id: s.id })); } }, t('schedRunNow')) : null, ' ',
+        manage ? [el('button', { class: 'sec', onclick: () => done(() => post('/api/schedules/update', { id: s.id, enabled: !s.enabled })) }, s.enabled ? t('disable') : t('enable')), ' ',
+          el('button', { class: 'sec', onclick: () => { fill(s); formTitle.scrollIntoView({ block: 'center' }); } }, t('edit')), ' ',
+          el('button', { class: 'danger', onclick: () => { if (window.confirm(t('schedDeleteConfirm') + ' ' + s.name + '?')) done(() => post('/api/schedules/delete', { id: s.id })); } }, t('schedDelete'))] : null));
+  });
+  const field = (label, ...inputs) => el('label', { class: 'field' }, el('span', { class: 'flabel' }, label), ...inputs);
+
+  return el('div', {}, message,
+    el('div', { class: 'card' }, el('h3', {}, t('tab_schedule')), el('p', { class: 'sub' }, t('schedIntro')),
+      data.enabled ? null : el('div', { class: 'err warn' }, t('schedScansOff')),
+      data.schedules.length ? el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['schedName', 'schedTargets', 'schedWindow', 'schedFrequency', 'schedLast', 'schedNext', ''].map((k) => el('th', {}, k ? t(k) : '')))), el('tbody', {}, rows)))
+        : el('div', { class: 'empty' }, t('schedNone')),
+      el('p', { class: 'sub', style: 'font-size:12px' }, t('schedNote'))),
+    manage ? el('div', { class: 'card' }, formTitle,
+      el('div', { class: 'row3' }, field(t('schedName'), f.name), field(t('schedOffset'), f.offset), field(t('schedFrequency'), el('div', { class: 'toolbar', style: 'margin:0' }, t('schedEvery'), f.n, f.unit))),
+      el('div', { class: 'row3' }, field(t('schedFrom'), f.from), field(t('schedTo'), f.to)),
+      field(t('schedDaysLabel'), el('div', { class: 'toolbar', style: 'margin:0' }, dayBoxes.map(({ d, box }) => el('label', { class: 'check' }, box, ' ' + t('day_' + d))))),
+      el('p', { class: 'sub', style: 'font-size:12px' }, t('schedWindowHelp')),
+      el('div', { class: 'row3' }, field(t('targets'), f.targets), field(t('schedExclusions'), f.exclusions), field(t('schedPorts'), f.ports)),
+      el('div', { class: 'row3' }, field(t('schedWorkers'), f.workers), field(t('schedRate'), f.rate), field(t('schedTiming'), f.timing)),
+      el('div', { class: 'toolbar', style: 'margin-top:10px' }, el('label', { class: 'check' }, f.web, ' ' + t('schedWeb')), el('label', { class: 'check' }, f.privileged, ' ' + t('schedPrivileged')), el('label', { class: 'check' }, f.enabled, ' ' + t('enabled'))),
+      el('div', { class: 'toolbar' }, saveBtn, cancelBtn)) : null,
+    el('div', { class: 'card' }, el('h3', {}, 'DefectDojo'), el('div', { class: 'empty' }, el('div', { style: 'font-size:34px' }, '🛠'), el('b', {}, t('soonTitle')), el('p', {}, t('soonDojo')))));
 }
 
 // ---- administration: users, roles, audit log
@@ -1253,9 +1382,9 @@ function renderHeader() {
       signedIn ? el('button', { class: 'sec', onclick: async () => { try { await post('/api/logout'); } catch (e) { /* the session may be gone already */ } setSession('', null); location.hash = '#/dashboard'; render(); } }, t('signOut')) : null));
 }
 
-const ROUTES = { dashboard: viewDashboard, results: viewResults, changes: viewChanges, signatures: viewSignatures, schedule: viewSoon('soonSchedule', 'tab_schedule'), admin: viewAdmin };
+const ROUTES = { dashboard: viewDashboard, results: viewResults, changes: viewChanges, signatures: viewSignatures, schedule: viewSchedule, admin: viewAdmin };
 const ROUTE_PERMISSION = { dashboard: 'data.read', results: 'data.read', changes: 'data.read', signatures: 'data.read', schedule: 'data.read', admin: 'users.manage' };
-const SOON = new Set(['schedule']);
+const SOON = new Set();
 const ALIASES = { services: ['results', { view: 'services' }], runs: ['results', { view: 'runs' }], edits: ['results', { view: 'edits' }], scan: ['dashboard', {}], targets: ['dashboard', {}] }; // links of the earlier layout keep working
 
 function parseHash() {
