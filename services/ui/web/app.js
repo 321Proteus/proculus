@@ -108,6 +108,9 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  presetLabel: 'Gotowy zestaw', presetNone: '— własne ustawienia —', presetHint: 'Wypełnia formularz; możesz go dalej zmienić. Co wolno skanować, i tak ustala administrator.', presetBuiltin: 'Wbudowane', presetMine: 'Moje zestawy',
+  presetSave: 'Zapisz jako zestaw', presetSaveAsk: 'Nazwa zestawu (zapisywany w tej przeglądarce):', presetDelete: 'Usuń zestaw', presetSaved: 'Zapisano zestaw', presetNeedTargets: 'Wpisz najpierw cele skanu.',
+  presetAddTo: 'Dodaj do zakresu i portów z zestawu:',
   scanCfgTitle: 'Skanowanie (ustawienia administratora)', scanCfgIntro: 'Skany z interfejsu są wyłączone, dopóki ich tu nie włączysz. Formularz „Nowy skan” może wybrać tylko cele z zakresu i porty z listy poniżej.',
   scanCfgEnabled: 'Skanowanie z interfejsu włączone', scanCfgScope: 'Zakres adresów', scanCfgScopeHint: 'IP, CIDR lub zakresy, po przecinku, np. 10.250.165.0/24', scanCfgPorts: 'Dozwolone porty', scanCfgPortsHint: 'np. 22,80,443,8000-8100',
   scanCfgWorkers: 'Maks. procesów nmap', scanCfgRate: 'Maks. pakietów/s na proces', scanCfgWeb: 'Zezwól na sondowanie WWW', scanCfgPriv: 'Zezwól na skany surowymi gniazdami (wymaga uprawnień)', scanCfgReserved: 'Zezwól na adresy zarezerwowane (loopback itp.; tylko lokalne laboratorium)',
@@ -147,6 +150,9 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  presetLabel: 'Preset', presetNone: '— custom settings —', presetHint: 'Fills in the form; you can still change it. What may be scanned is decided by the administrator anyway.', presetBuiltin: 'Built in', presetMine: 'My presets',
+  presetSave: 'Save to preset', presetSaveAsk: 'Preset name (kept in this browser):', presetDelete: 'Delete preset', presetSaved: 'Preset saved', presetNeedTargets: 'Enter the scan targets first.',
+  presetAddTo: 'Add to the scope and ports from a preset:',
   scanCfgTitle: 'Scanning (administrator settings)', scanCfgIntro: 'Scans from the UI stay off until you turn them on here. The "New scan" form can only pick targets inside the scope and ports from the list below.',
   scanCfgEnabled: 'Scanning from the UI enabled', scanCfgScope: 'Address scope', scanCfgScopeHint: 'IPs, CIDRs or ranges, comma separated, e.g. 10.250.165.0/24', scanCfgPorts: 'Allowed ports', scanCfgPortsHint: 'e.g. 22,80,443,8000-8100',
   scanCfgWorkers: 'Max nmap processes', scanCfgRate: 'Max packets/s per process', scanCfgWeb: 'Allow web probing', scanCfgPriv: 'Allow raw-socket scans (needs privileges)', scanCfgReserved: 'Allow reserved addresses (loopback etc.; local lab only)',
@@ -501,6 +507,13 @@ function buildTelemetry() {
   return { node, update, stopBtn };
 }
 
+// The user's own presets live in this browser (they only fill in the form; the server decides what may be scanned).
+const presetKey = () => 'proculus.presets.' + (session.user ? session.user.username : '');
+function userPresets() {
+  try { const v = JSON.parse(localStorage.getItem(presetKey()) || '[]'); return Array.isArray(v) ? v.filter((p) => p && typeof p.name === 'string' && Array.isArray(p.targets)) : []; } catch (e) { return []; }
+}
+function storeUserPresets(list) { try { localStorage.setItem(presetKey(), JSON.stringify(list.slice(0, 50))); } catch (e) { /* ignore */ } }
+
 function scanFormCard(s, onStarted) {
   if (!s.enabled) return el('div', { class: 'card', id: 'tour-config' }, el('h3', {}, t('cfgTitle')), el('div', { class: 'empty' }, el('b', {}, t('scanUnavailable')), el('p', {}, t('scanDisabledHint'))));
   if (!can('scan.run')) return el('div', { class: 'card', id: 'tour-config' }, el('h3', {}, t('cfgTitle')), el('div', { class: 'empty' }, t('scanForbidden')));
@@ -516,6 +529,31 @@ function scanFormCard(s, onStarted) {
   const token = el('input', { type: 'password', autocomplete: 'off', value: controlToken, placeholder: '…' });
   const message = el('div', {});
   const planBox = el('div', {});
+  const builtin = p.presets || [];
+  let mine = userPresets();
+  const presetSel = el('select', {});
+  const drawPresets = () => {
+    mine = userPresets();
+    presetSel.replaceChildren(el('option', { value: '' }, t('presetNone')),
+      builtin.length ? el('optgroup', { label: t('presetBuiltin') }, builtin.map((pr, i) => el('option', { value: 'b' + i }, pr.name))) : null,
+      mine.length ? el('optgroup', { label: t('presetMine') }, mine.map((pr, i) => el('option', { value: 'm' + i }, pr.name))) : null);
+  };
+  const pickedPreset = () => { const v = presetSel.value; return v[0] === 'b' ? builtin[Number(v.slice(1))] : v[0] === 'm' ? mine[Number(v.slice(1))] : null; };
+  presetSel.addEventListener('change', () => {
+    const pr = pickedPreset();
+    delPreset.hidden = presetSel.value[0] !== 'm';
+    if (!pr) return;
+    const num = (v, d, max) => Math.min(Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d, max);
+    targets.value = pr.targets.join('\n'); exclusions.value = (pr.exclusions || []).join('\n'); ports.value = pr.ports || '';
+    workers.value = num(pr.workers, 2, p.max_workers); rate.value = num(pr.rate, 100, p.max_rate); timing.value = String(Number.isInteger(pr.timing) && pr.timing >= 0 && pr.timing <= 4 ? pr.timing : 3);
+    web.checked = !!pr.web && p.allow_web; priv.checked = !!pr.privileged && p.allow_privileged;
+  });
+  const delPreset = el('button', { class: 'sec', hidden: true, onclick: () => {
+    const pr = pickedPreset();
+    if (!pr) return;
+    storeUserPresets(mine.filter((x) => x.name !== pr.name)); drawPresets(); presetSel.value = ''; delPreset.hidden = true;
+  } }, t('presetDelete'));
+  drawPresets();
 
   const list = (box) => box.value.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
   const request = () => ({ targets: list(targets), exclusions: list(exclusions), ports: ports.value.trim(), workers: Number(workers.value), rate: Number(rate.value), timing: Number(timing.value), web: web.checked, privileged: priv.checked });
@@ -532,12 +570,24 @@ function scanFormCard(s, onStarted) {
       planBox.replaceChildren(el('div', { class: 'eta-box' }, el('ul', { class: 'reasons' }, lines.concat(r.warnings).map((l) => el('li', {}, l)))));
     } catch (e) { fail(e); }
   } }, t('plan')));
+  const saveBtn = el('button', { class: 'sec', onclick: () => {
+    message.replaceChildren();
+    const r = request();
+    if (!r.targets.length) { message.replaceChildren(el('div', { class: 'err' }, t('presetNeedTargets'))); return; }
+    const name = (window.prompt(t('presetSaveAsk'), pickedPreset() && presetSel.value[0] === 'm' ? pickedPreset().name : '') || '').trim().slice(0, 60);
+    if (!name) return;
+    const keep = { name, targets: r.targets, exclusions: r.exclusions, ports: r.ports, workers: r.workers, rate: r.rate, timing: r.timing, web: r.web, privileged: r.privileged };
+    storeUserPresets(userPresets().filter((x) => x.name !== name).concat([keep]));
+    drawPresets(); presetSel.value = 'm' + (mine.length - 1); delPreset.hidden = false;
+    message.replaceChildren(el('div', { class: 'ok-note' }, t('presetSaved') + ': ' + name));
+  } }, t('presetSave'));
   const startBtn = tip(t('start'), t('tipStart'), el('button', { onclick: async () => {
     remember(); message.replaceChildren();
     try { await post('/api/scan', request()); onStarted(); } catch (e) { fail(e); }
   } }, '▶ ' + t('start')));
 
   const fieldset = el('fieldset', { class: 'plain' },
+    field(t('presetLabel'), t('presetHint'), el('div', { class: 'toolbar', style: 'margin:0' }, presetSel, delPreset)),
     field(t('targets'), t('targetsHint'), targets, t('tipTargets')), field(t('exclusions'), t('exclusionsHint'), exclusions), field(t('ports'), t('portsHint'), ports),
     el('div', { class: 'row3' }, field(t('workers'), '', workers, t('tipWorkers')), field(t('rate'), '', rate, t('tipRate')), field(t('timing'), '', timing, t('tipTiming'))),
     p.allow_web ? tip(t('web'), t('tipWeb'), el('label', { class: 'check' }, web, ' ' + t('web'))) : null,
@@ -545,8 +595,8 @@ function scanFormCard(s, onStarted) {
     auth && auth.enabled ? null : field(t('token'), t('tokenHint'), token));
   const node = el('div', { class: 'card', id: 'tour-config' }, el('h3', {}, t('cfgTitle')),
     el('p', { class: 'sub', style: 'font-size:12px' }, t('limits') + ': ' + t('scope') + ' ' + p.scope + ' · ' + t('allowedPorts') + ' ' + p.allowed_ports + ' · ' + t('maxWorkers') + ' ' + p.max_workers + ' · ' + t('maxRate') + ' ' + p.max_rate),
-    fieldset, el('div', { class: 'toolbar', id: 'tour-start', style: 'margin-top:14px;margin-bottom:0' }, startBtn, planBtn), message, planBox);
-  node.setBusy = (busy) => { fieldset.disabled = busy; startBtn.disabled = busy; planBtn.disabled = busy; };
+    fieldset, el('div', { class: 'toolbar', id: 'tour-start', style: 'margin-top:14px;margin-bottom:0' }, startBtn, planBtn, saveBtn), message, planBox);
+  node.setBusy = (busy) => { fieldset.disabled = busy; startBtn.disabled = busy; planBtn.disabled = busy; saveBtn.disabled = busy; };
   return node;
 }
 
@@ -751,9 +801,15 @@ function scanSettingsCard(c, done) {
   const web = el('input', { type: 'checkbox', checked: c.allow_web });
   const priv = el('input', { type: 'checkbox', checked: c.allow_privileged });
   const reserved = el('input', { type: 'checkbox', checked: c.allow_reserved });
+
+  // the same presets as on the scan form, here only to fill in the scope and ports
+  const merge = (input, items) => { const have = input.value.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean); items.forEach((x) => { if (!have.includes(x)) have.push(x); }); input.value = have.join(','); };
+  const all = (c.presets || []).concat(userPresets());
+  const presetButtons = all.map((pr) => el('button', { class: 'sec', onclick: () => { merge(scope, pr.targets); merge(ports, (pr.ports || '').split(',')); } }, '+ ' + pr.name));
+
   const save = () => done(async () => {
     await post('/api/scan/config', { enabled: on.checked, scope: scope.value.trim(), allowed_ports: ports.value.trim(), max_workers: Number(workers.value), max_rate: Number(rate.value),
-      allow_web: web.checked, allow_privileged: priv.checked, allow_reserved: reserved.checked });
+      allow_web: web.checked, allow_privileged: priv.checked, allow_reserved: reserved.checked, });
   });
   return el('div', { class: 'card' }, el('h3', {}, t('scanCfgTitle')), el('p', { class: 'sub' }, t('scanCfgIntro')),
     el('label', { class: 'check' }, on, ' ' + t('scanCfgEnabled')),
@@ -761,6 +817,7 @@ function scanSettingsCard(c, done) {
       field(t('scanCfgWorkers'), '', workers), field(t('scanCfgRate'), '', rate)),
     el('label', { class: 'check' }, web, ' ' + t('scanCfgWeb')), el('label', { class: 'check' }, priv, ' ' + t('scanCfgPriv')), el('label', { class: 'check' }, reserved, ' ' + t('scanCfgReserved')),
     el('p', { class: 'sub', style: 'font-size:12px' }, t('scanCfgCeiling') + ': ', el('span', { class: 'mono' }, c.ceiling || t('scanCfgNoCeiling'))),
+    presetButtons.length ? el('div', { class: 'toolbar' }, el('span', { class: 'sub', style: 'font-size:12px' }, t('presetAddTo')), ...presetButtons) : null,
     el('div', { class: 'toolbar' }, el('button', { onclick: save }, t('scanCfgSave'))));
 }
 

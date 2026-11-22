@@ -8,6 +8,9 @@
 #include <streambuf>
 #include <thread>
 
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 #include <sys/stat.h>
 
 #include "planner.hpp"
@@ -139,6 +142,12 @@ void check_policy(const ScanPolicy& p) {
 	}
 }
 
+Json preset_json(const ScanPreset& pr) {
+	Json j = request_json(pr.request);
+	j["name"] = pr.name;
+	return j;
+}
+
 Json settings_json(const ScanPolicy& p) {
 	return {{"enabled", p.enabled}, {"scope", p.scope}, {"allowed_ports", p.allowed_ports}, {"max_workers", p.max_workers}, {"max_rate", p.max_rate},
 		{"allow_privileged", p.allow_privileged}, {"allow_web", p.allow_web}, {"allow_reserved", p.allow_reserved}};
@@ -220,8 +229,8 @@ struct ScanController::Impl {
 	ScanRequest current;
 	Json last = nullptr;
 
-	RunnerConfig validate(const ScanRequest& r) const {
-		const ScanPolicy policy = snapshot();
+	RunnerConfig validate(const ScanRequest& r) const { return validate(r, snapshot()); }
+	RunnerConfig validate(const ScanRequest& r, const ScanPolicy& policy) const {
 		if (!policy.enabled) throw ApiError(403, "scans are not enabled on this server");
 		if (r.targets.empty()) bad("give at least one target");
 		if (r.workers > policy.max_workers) bad("at most " + std::to_string(policy.max_workers) + " workers are allowed");
@@ -343,9 +352,63 @@ ScanController::~ScanController() {
 
 bool ScanController::enabled() const { return impl_->snapshot().enabled; }
 
+namespace {
+
+// Ready-made presets from this machine's own addresses.
+std::vector<ScanPreset> make_builtin_presets() {
+	std::vector<ScanPreset> out;
+	ScanPreset local;
+	local.name = "localhost";
+	local.request.targets = {"127.0.0.1"};
+	local.request.ports = "22,80,443,3000,5000,8000,8080,8443";
+	out.push_back(local);
+	ifaddrs* list = nullptr;
+	if (getifaddrs(&list) != 0) return out;
+	auto dotted = [](uint32_t v) { return std::to_string(v >> 24) + "." + std::to_string((v >> 16) & 255) + "." + std::to_string((v >> 8) & 255) + "." + std::to_string(v & 255); };
+	std::set<std::string> seen;
+	for (ifaddrs* a = list; a; a = a->ifa_next) {
+		if (!a->ifa_addr || !a->ifa_netmask || a->ifa_addr->sa_family != AF_INET || !(a->ifa_flags & IFF_UP) || (a->ifa_flags & IFF_LOOPBACK)) continue;
+		const uint32_t ip = ntohl(reinterpret_cast<sockaddr_in*>(a->ifa_addr)->sin_addr.s_addr);
+		const uint32_t mask = ntohl(reinterpret_cast<sockaddr_in*>(a->ifa_netmask)->sin_addr.s_addr);
+		int prefix = 0;
+		for (uint32_t m = mask; m & 0x80000000u; m <<= 1) prefix++;
+		if (prefix < 16 || prefix > 30 || (ip >> 24) == 169) continue; // very large networks and link-local addresses are not offered
+		const std::string cidr = dotted(ip & mask) + "/" + std::to_string(prefix);
+		if (!seen.insert(cidr).second) continue;
+		ScanPreset hosts, net;
+		hosts.name = "local hosts (" + cidr + ")"; // this machine and the usual address of the router; the user edits the list
+		hosts.request.targets = {dotted(ip), dotted((ip & mask) + 1)};
+		hosts.request.ports = "22,80,443,8080,8443";
+		net.name = "whole local network (" + cidr + ")";
+		net.request.targets = {cidr};
+		net.request.ports = "22,80,443,8080,8443";
+		out.push_back(hosts);
+		out.push_back(net);
+	}
+	freeifaddrs(list);
+	return out;
+}
+
+} // namespace
+
+Json ScanController::builtin_presets() {
+	static std::mutex m; // the status is polled every second: look at the interfaces only now and then
+	static Json cached;
+	static std::chrono::steady_clock::time_point at;
+	std::lock_guard<std::mutex> l(m);
+	const auto now = std::chrono::steady_clock::now();
+	if (cached.is_null() || now - at > std::chrono::seconds(30)) {
+		cached = Json::array();
+		for (const ScanPreset& pr : make_builtin_presets()) cached.push_back(preset_json(pr));
+		at = now;
+	}
+	return cached;
+}
+
 Json ScanController::settings() const {
 	const ScanPolicy p = impl_->snapshot();
 	Json j = settings_json(p);
+	j["presets"] = builtin_presets();
 	j["ceiling"] = p.ceiling;
 	return j;
 }
@@ -416,6 +479,7 @@ Json ScanController::status() const {
 	if (!policy.enabled) return j;
 	j["policy"] = {{"scope", policy.scope}, {"allowed_ports", policy.allowed_ports}, {"max_workers", policy.max_workers}, {"max_rate", policy.max_rate},
 		{"allow_privileged", policy.allow_privileged}, {"allow_web", policy.allow_web}};
+	j["policy"]["presets"] = builtin_presets();
 	std::lock_guard<std::mutex> l(i.m);
 	j["state"] = i.stopping ? "stopping" : i.running ? "running" : "idle";
 	if (i.running) {

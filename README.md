@@ -130,6 +130,14 @@ work, but only as first-run defaults until the settings file exists. Without log
 (`--no-auth`) there is nobody to answer for a change, so the settings can only come
 from those flags.
 
+**Presets.** The New scan form offers ready-made presets to every user, built from the
+machine the gateway runs on: `localhost` (common ports), `local hosts` (this machine and
+the usual router address) and the `whole local network`. Choosing one only fills in the
+form; if the addresses or ports are outside what the administrator allowed, the scan is
+refused as usual. "Save to preset" stores the current form under a name in the user's own
+browser. The administrator can use the same presets (Admin → Scanning) to add their
+addresses and ports to the scope instead of typing them.
+
 ```sh
 ./build/services/gateway/gateway serve --store results --scan-ceiling 192.168.1.0/24
 ./build/services/ui/ui

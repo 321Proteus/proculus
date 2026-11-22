@@ -245,6 +245,19 @@ void test_settings() {
 	assert(ctl.plan(req({"10.20.0.0/28"}))["addresses"].get<int>() > 0);
 	assert(fs::exists(file) && (fs::status(file).permissions() & (fs::perms::group_all | fs::perms::others_all)) == fs::perms::none);
 
+	// the built-in presets are the same for everyone: localhost first, then the local networks; they
+	// only fill in the form, the scope still decides
+	{
+		const Json all = ctl.settings();
+		assert(all["presets"].size() >= 1 && all["presets"][0]["name"] == "localhost" && all["presets"][0]["targets"][0] == "127.0.0.1");
+		assert(ctl.status()["policy"]["presets"] == all["presets"] && !all.contains("suggestions"));
+		for (const Json& pr : all["presets"]) assert(!pr["targets"].empty() && !pr["ports"].get<std::string>().empty());
+		ScanRequest r; // localhost is outside this scope, so the preset "just does not work"
+		r.targets = all["presets"][0]["targets"].get<std::vector<std::string>>();
+		assert(api_error(400, [&] { ctl.plan(r); }, "outside the allowed scope"));
+		assert(api_error(400, [&] { ctl.configure(Json{{"presets", Json::array()}}); }, "unknown")); // presets are not a setting
+	}
+
 	// a partial change keeps the rest
 	ctl.configure(Json{{"max_rate", 170}});
 	assert(ctl.settings()["scope"] == "10.20.0.0/24" && ctl.settings()["max_rate"] == 170 && ctl.settings()["allow_reserved"] == false);

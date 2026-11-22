@@ -29,6 +29,25 @@
 
 namespace proculus {
 
+struct ScanRequest {
+	std::vector<std::string> targets;    // IP, CIDR, range or domain
+	std::vector<std::string> exclusions;
+	std::string ports;                   // services stage; empty = every allowed port
+	unsigned workers = 2;
+	int rate = 100;
+	int timing = 3;
+	bool web = false;
+	bool privileged = false;
+};
+
+// A named, ready-made scan request. The built-in ones (ScanController::builtin_presets) are
+// the same for every user; users keep their own in the browser. A preset only fills in the form:
+// what a scan may touch is decided by the administrator's scope and ports, whatever the preset says.
+struct ScanPreset {
+	std::string name;
+	ScanRequest request;
+};
+
 struct ScanPolicy {
 	bool enabled = false;
 	std::string ceiling;        // set at start-up by the operator: the scope can never go beyond it (empty: no limit)
@@ -41,17 +60,6 @@ struct ScanPolicy {
 	bool allow_reserved = false; // loopback etc. (for tests and local labs)
 	std::string nmap_path = "nmap";
 	std::vector<std::string> signature_paths; // custom signatures for the web stage
-};
-
-struct ScanRequest {
-	std::vector<std::string> targets;    // IP, CIDR, range or domain
-	std::vector<std::string> exclusions;
-	std::string ports;                   // services stage; empty = every allowed port
-	unsigned workers = 2;
-	int rate = 100;
-	int timing = 3;
-	bool web = false;
-	bool privileged = false;
 };
 
 // From the UI's JSON; ApiError(400) for anything malformed. Unknown keys are refused.
@@ -69,8 +77,11 @@ public:
 
 	// The settings an administrator may change (also what is saved): enabled, scope,
 	// allowed_ports, max_workers, max_rate, allow_privileged, allow_web, allow_reserved,
-	// plus the read-only `ceiling` and whether a scan is running.
+	// plus the read-only `ceiling` and the built-in `presets`.
 	Json settings() const;
+	// The ready-made presets, built from this machine's addresses: [{name, targets, exclusions, ports,
+	// workers, rate, timing, web, privileged}]: localhost ports, a few hosts of the local network, the whole network.
+	static Json builtin_presets();
 	// Applies the keys present in `body` (unknown keys are refused), validates the result
 	// against the ceiling and saves it. Throws ApiError 400 when invalid.
 	// A scan that is already running keeps the settings it started with.
