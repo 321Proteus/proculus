@@ -1,12 +1,13 @@
-# Keeps the runs in Postgres (sealed fields, see libs/pgstore) instead of files, and turns login on
-# (users and roles in the same database, see libs/auth).
+# Keeps the runs, and the accounts (users, roles, audit log), in Postgres instead of files.
+# See libs/pgstore and libs/auth.
 # Use together with docker-compose.yml:
 #
 #   export PROCULUS_KEY=1:$(openssl rand -hex 32)      # keep it: without it the stored data cannot be read
 #   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db --profile ui up --build ui
 #   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db --profile tools run --rm runner --scope ... --allowed-ports ... --web ...
 #
-# Create the first administrator (there are no default accounts):
+# The first visit to the UI asks for the setup token printed in `docker compose logs api`; or create
+# the first administrator from the command line (there are no default accounts):
 #   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db run --rm api user add your.name --role admin
 #
 # The key encrypts the sensitive columns (titles, headers, cookies, TLS data,
@@ -16,7 +17,6 @@
 services:
   api:
     environment:
-      PROCULUS_AUTH: "1"
       PROCULUS_DB_URL: postgresql://proculus:proculus@postgres:5432/proculus
       PROCULUS_KEY: ${PROCULUS_KEY:?set PROCULUS_KEY to 1:<64 hex characters>, e.g. 1:$(openssl rand -hex 32)}
     depends_on:

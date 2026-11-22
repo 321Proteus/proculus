@@ -119,18 +119,19 @@ export PROCULUS_CONTROL_TOKEN=choose-a-long-secret        # else a random one is
 ./build/services/ui/ui
 ```
 
-Until there are user accounts, starting, planning and stopping scans need that
-control token (entered in the form, sent as `X-Proculus-Token`); wrong guesses are
-limited. Requests must be JSON, so a web page on another site cannot trigger a scan
-by posting a form. In Docker: `docker-compose.scans.yml` (see its header).
+With login off (`--no-auth`), starting, planning and stopping scans need that control
+token (entered in the form, sent as `X-Proculus-Token`); wrong guesses are limited.
+Requests must be JSON, so a web page on another site cannot trigger a scan by
+posting a form. With login, the `scan.run` permission replaces the token.
+In Docker: `docker-compose.scans.yml` (see its header).
 
-The UI service holds no data and decides nothing; the gateway will be where
-logins and roles are enforced. The proxy only forwards GET requests to plain
-`/api/...` paths, to the one configured gateway (POST only to the three scan routes),
-and only passes back JSON of a limited size. There is no login yet, so both services are read-only, listen on
-the loopback interface only, answer only to local host names (`--allow-host NAME`
-adds more, against DNS rebinding), and the pages are sent with a strict
-Content-Security-Policy. Titles and banners come from scanned hosts and are
+The UI service holds no data and decides nothing; the gateway enforces logins and
+roles. The proxy only forwards GET requests to plain `/api/...` paths, POST only
+to a fixed list of routes (scans, login, users, roles), to the one configured
+gateway, passes on only the session and control tokens, and only passes back JSON
+of a limited size. Both services listen on the loopback interface only, answer
+only to local host names (`--allow-host NAME` adds more, against DNS rebinding),
+and the pages are sent with a strict Content-Security-Policy. Titles and banners come from scanned hosts and are
 never inserted as HTML. For UI development, `ui --web-dir services/ui/web`
 serves the files from disk without a rebuild.
 
@@ -155,6 +156,39 @@ The schema is created on first use from `db/migrations`. `differ` and `exporter`
 read files for now. In Docker: `docker-compose.db.yml` (see its header). Needs libpq
 and libsodium; without them the programs build as before and `--db` says so.
 Tests: `PROCULUS_TEST_DB_URL=postgresql://... ctest --test-dir build`.
+
+## Users, roles and login
+
+Login is on by default. Accounts, roles and an audit log are kept in files next to the runs
+(`DIR/accounts`, mode 0600) or, with `--db`, in Postgres. Passwords are Argon2id hashes, and there
+are no default accounts. On the first start with no accounts the gateway prints a **setup token**
+on its console; the first visit to the UI asks for it and creates the administrator (the token
+stops anyone else who can reach the page from claiming the account first; setup works once, and
+wrong tokens are throttled).
+
+```sh
+./build/services/gateway/gateway serve --store results        # prints the setup token; open the UI and use it
+./build/services/ui/ui                                        # http://127.0.0.1:8080
+
+# or create the first administrator from the command line instead
+./build/services/gateway/gateway user add your.name --role admin --store results   # asks for the password
+./build/services/gateway/gateway user list | roles | passwd | role | disable | enable   # (--help)
+
+./build/services/gateway/gateway serve --store results --no-auth   # NO LOGIN (local use only; the UI warns)
+```
+
+Four built-in roles match the spec: **admin** (Administracja: everything, including users and
+configuration), **manager** (add, delete and modify data, run scans), **editor** (modify and
+read) and **viewer** (read). A role is just a set of permissions (`data.read`, `data.edit`,
+`data.create`, `data.delete`, `export`, `scan.run`, `config.manage`, `users.manage`), so more roles
+can be created in the Administration page without code. Every route has a required permission in
+one table (`services/gateway/src/server.cpp`) and is denied by default; the menu hides what a role
+cannot use, but the server is what enforces it. Sessions are server-side, expire when idle, and end
+at once when an account is changed or disabled; too many wrong passwords lock a user name for a
+few minutes; the last administrator cannot be removed or disabled; logins, failures, scans and
+account changes are written to the audit log (never passwords). The command line and the server
+can change the same accounts at the same time. Keep the accounts directory private: it holds
+password hashes. Nothing encrypts the connection itself: put the UI behind a TLS proxy for real use.
 
 ## Following changes over time
 
@@ -245,7 +279,8 @@ stored as `name=<redacted>; attributes`.
 - `libs/signatures` – detection signatures: loader, matching engine, 125 built-ins
 - `services/signatures` – list, lint, test and try out signatures
 - `libs/insight` – priority score for services and the dashboard summary
-- `libs/web` – Host-header guard and settings shared by the web-facing services
+- `libs/web` – Host-header guard, sessions and login throttle shared by the web-facing services
+- `libs/auth` – users, roles and the audit log in Postgres
 - `services/gateway` – the demo above, and `serve`: the read-only JSON API
 - `services/ui` – the web UI: the pages, and a strict proxy to the gateway API
 - `third_party/httplib` – cpp-httplib (single header, MIT) used by the web server

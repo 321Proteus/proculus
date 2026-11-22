@@ -8,7 +8,8 @@ services:
     volumes:
       - results:/data
 
-  # Web UI over the saved runs (read-only, no login yet), at http://localhost:8080 :
+  # Web UI over the saved runs, at http://localhost:8080 (login is on: the first visit asks for the
+  # setup token, which is printed in the log of `api`: docker compose logs api):
   #   docker compose --profile ui up --build ui
   # `ui` serves the pages and passes /api/ requests on to `api` (the gateway),
   # which reads the saved runs. Only `ui` is published, and only on the loopback
@@ -19,7 +20,7 @@ services:
       target: gateway
     command: ["serve", "--bind", "0.0.0.0", "--port", "8081", "--store", "/data", "--allow-host", "api"]
     volumes:
-      - results:/data:ro
+      - results:/data # writable: the accounts are kept in /data/accounts (without a database)
     profiles: ["ui"]
 
   ui:
