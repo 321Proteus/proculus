@@ -31,6 +31,11 @@ COPY --from=build /src/build/services/gateway/gateway /usr/local/bin/gateway
 USER proculus
 ENTRYPOINT ["gateway"]
 
+FROM runtime-base AS ui
+COPY --from=build /src/build/services/ui/ui /usr/local/bin/ui
+USER proculus
+ENTRYPOINT ["ui"]
+
 FROM runtime-base AS planner
 COPY --from=build /src/build/services/planner/planner /usr/local/bin/planner
 USER proculus

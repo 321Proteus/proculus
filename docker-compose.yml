@@ -8,6 +8,31 @@ services:
     volumes:
       - results:/data
 
+  # Web UI over the saved runs (read-only, no login yet), at http://localhost:8080 :
+  #   docker compose --profile ui up --build ui
+  # `ui` serves the pages and passes /api/ requests on to `api` (the gateway),
+  # which reads the saved runs. Only `ui` is published, and only on the loopback
+  # interface: until there are user accounts it must not be reachable from other machines.
+  api:
+    build:
+      context: .
+      target: gateway
+    command: ["serve", "--bind", "0.0.0.0", "--port", "8081", "--store", "/data", "--allow-host", "api"]
+    volumes:
+      - results:/data:ro
+    profiles: ["ui"]
+
+  ui:
+    build:
+      context: .
+      target: ui
+    command: ["--bind", "0.0.0.0", "--port", "8080", "--api", "http://api:8081"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - api
+    profiles: ["ui"]
+
   exporter:
     build:
       context: .
