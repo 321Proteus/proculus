@@ -1,0 +1,14 @@
+add_library(runner_core STATIC src/clock.cpp src/resolver.cpp src/web_stage.cpp src/runner.cpp)
+target_include_directories(runner_core PUBLIC src)
+target_link_libraries(runner_core PUBLIC scanner_core planner_core scheduler_core proculus_timing proculus_results proculus_sig prober_core)
+find_package(Threads REQUIRED)
+target_link_libraries(runner_core PUBLIC Threads::Threads)
+
+add_executable(runner src/main.cpp)
+target_link_libraries(runner PRIVATE runner_core)
+
+if(BUILD_TESTING)
+	add_executable(test_runner tests/test_runner.cpp)
+	target_link_libraries(test_runner PRIVATE runner_core)
+	add_test(NAME runner COMMAND test_runner)
+endif()
