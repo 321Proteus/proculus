@@ -15,11 +15,12 @@
 #include "proculus/sig/builtin.hpp"
 #include "proculus/sig/evidence_json.hpp"
 #include "prober.hpp"
+#include "web_record.hpp"
 #include "report.hpp"
 
 enum { OPT_SCOPE = 256, OPT_PORTS, OPT_HOST, OPT_FORMAT, OPT_BODY, OPT_COOKIE_VALUES, OPT_NO_FAVICON, OPT_RATE, OPT_REDIRECTS,
 	OPT_CONNECT_TIMEOUT, OPT_TIMEOUT, OPT_MAX_BODY, OPT_ALLOW_RESERVED, OPT_STORE, OPT_RUN, OPT_SIGNATURES, OPT_NO_BUILTIN_SIGS, OPT_NO_SIGS, OPT_NO_PATHS, OPT_MAX_PATHS,
-	OPT_MIN_CONFIDENCE, OPT_DUMP_EVIDENCE, OPT_HELP };
+	OPT_MIN_CONFIDENCE, OPT_DUMP_EVIDENCE, OPT_SAVE_RUN, OPT_HELP };
 
 static const option long_opts[] = {
 	{ "scope", required_argument, nullptr, OPT_SCOPE },
@@ -44,6 +45,7 @@ static const option long_opts[] = {
 	{ "max-paths", required_argument, nullptr, OPT_MAX_PATHS },
 	{ "min-confidence", required_argument, nullptr, OPT_MIN_CONFIDENCE },
 	{ "dump-evidence", no_argument, nullptr, OPT_DUMP_EVIDENCE },
+	{ "save-run", no_argument, nullptr, OPT_SAVE_RUN },
 	{ "help", no_argument, nullptr, OPT_HELP },
 	{ nullptr, 0, nullptr, 0 },
 };
@@ -69,7 +71,9 @@ static void usage(const char* argv0) {
 		<< "  --no-paths           never fetch extra paths (/wp-login.php, /phpmyadmin/, ...) for signatures\n"
 		<< "  --max-paths N        at most N extra paths per service, most valuable first (default 8)\n"
 		<< "  --min-confidence C   hide detections below C, 0..1 (default 0: each signature has its own threshold)\n"
-		<< "  --dump-evidence      print the facts signatures were matched against (JSON, to stderr)\n";
+		<< "  --dump-evidence      print the facts signatures were matched against (JSON, to stderr)\n"
+		<< "  --save-run           with --store/--run: save a copy of the run with the web results and detections attached\n"
+		<< "                       as a new run (so `differ` can follow web changes)\n";
 }
 
 static double to_double(const char* s, const char* what) {
@@ -111,7 +115,7 @@ int main(int argc, char** argv) {
 	using namespace proculus;
 	ProbeLimits limits;
 	std::string host, store_dir, run_arg, format = "text";
-	bool include_body = false, builtin_sigs = true, use_sigs = true, use_paths = true, dump_evidence = false;
+	bool include_body = false, builtin_sigs = true, use_sigs = true, use_paths = true, dump_evidence = false, save_run = false;
 	size_t max_paths = 8;
 	double min_confidence = 0;
 	std::vector<std::string> sig_paths;
@@ -150,6 +154,7 @@ int main(int argc, char** argv) {
 				if (min_confidence < 0 || min_confidence > 1) throw std::invalid_argument("--min-confidence must be between 0 and 1");
 				break;
 			case OPT_DUMP_EVIDENCE: dump_evidence = true; break;
+			case OPT_SAVE_RUN: save_run = true; break;
 			case OPT_HELP: usage(argv[0]); return 0;
 			default: throw std::invalid_argument(std::string("bad option: ") + argv[optind - 1]);
 			}
@@ -157,32 +162,41 @@ int main(int argc, char** argv) {
 		while (optind < argc) positional.push_back(argv[optind++]);
 
 		std::vector<ProbeTarget> targets;
+		std::vector<std::pair<size_t, size_t>> where; // (host, service) in the loaded run, per target
+		std::optional<RunRecord> source_run;
+		std::optional<FileResultStore> store;
 		if (!store_dir.empty() || !run_arg.empty()) {
 			if (store_dir.empty() || run_arg.empty()) throw std::invalid_argument("--store and --run go together");
 			if (!positional.empty()) throw std::invalid_argument("give either targets or --store/--run, not both");
-			FileResultStore store(store_dir);
+			store.emplace(store_dir);
 			int64_t id;
 			if (run_arg == "latest") {
-				auto runs = store.list();
+				auto runs = store->list();
 				if (runs.empty()) throw std::runtime_error("no runs stored in " + store_dir);
 				id = runs.back().id;
 			} else {
 				if (run_arg.size() > 15 || run_arg.find_first_not_of("0123456789") != std::string::npos) throw std::invalid_argument("not a run number: " + run_arg);
 				id = std::stoll(run_arg);
 			}
-			auto run = store.load(id);
+			auto run = store->load(id);
 			if (!run) throw std::runtime_error("no run " + std::to_string(id) + " in " + store_dir);
-			for (const HostRecord& h : run->hosts)
-				for (const ServiceRecord& s : h.services)
+			for (size_t hi = 0; hi < run->hosts.size(); hi++)
+				for (size_t si = 0; si < run->hosts[hi].services.size(); si++) {
+					const HostRecord& h = run->hosts[hi];
+					const ServiceRecord& s = h.services[si];
 					if (auto tls = web_service_scheme(s.name, s.port)) {
+						where.emplace_back(hi, si);
 						targets.emplace_back(h.ip, s.port, *tls, host);
 						targets.back().service = { s.name, s.product, s.version, {} };
 						if (!h.hostname.empty()) targets.back().service.hostnames.push_back(h.hostname);
 					}
+				}
 			std::cerr << "run " << id << ": " << targets.size() << " web services\n";
+			source_run = std::move(*run);
 		} else {
 			for (const std::string& t : positional) targets.push_back(parse_target(t, host));
 		}
+		if (save_run && !source_run) throw std::invalid_argument("--save-run needs --store and --run");
 		if (targets.empty()) throw std::invalid_argument("nothing to probe (see --help)");
 
 		// ---- signatures
@@ -211,7 +225,15 @@ int main(int argc, char** argv) {
 
 		int refused = 0;
 		ProbeJson all = ProbeJson::array();
-		for (const ProbeTarget& t : targets) {
+		RunRecord enriched;
+		if (save_run) {
+			enriched = *source_run;
+			enriched.id = 0;
+			enriched.source += "+web";
+		}
+		size_t probed = 0;
+		for (size_t ti = 0; ti < targets.size(); ti++) {
+			const ProbeTarget& t = targets[ti];
 			try {
 				HttpObservation o = prober.probe(t);
 				Detections det;
@@ -224,6 +246,10 @@ int main(int argc, char** argv) {
 					dp = &det;
 					if (dump_evidence) std::cerr << sig::evidence_to_json(ev).dump(2, ' ', false, ProbeJson::error_handler_t::replace) << "\n";
 				}
+				if (save_run && o.status > 0) {
+					enriched.hosts[where[ti].first].services[where[ti].second].web = to_web_record(o, dp ? dp->found : std::vector<sig::Detection>{});
+					probed++;
+				}
 				if (format == "json") all.push_back(probe_to_json(o, include_body, dp));
 				else std::cout << probe_to_text(o, dp) << "\n";
 			} catch (const ProbeRefused& e) {
@@ -231,6 +257,10 @@ int main(int argc, char** argv) {
 				if (format == "json") all.push_back({ { "ip", t.ip }, { "port", t.port }, { "refused", e.what() } });
 				else std::cout << t.ip << ":" << t.port << "  REFUSED: " << e.what() << "\n\n";
 			}
+		}
+		if (save_run) {
+			const int64_t new_id = store->save(std::move(enriched));
+			std::cerr << "saved run " << new_id << " (" << probed << " web services with results)\n";
 		}
 		if (format == "json") std::cout << all.dump(2, ' ', false, ProbeJson::error_handler_t::replace) << "\n";
 		return refused ? 4 : 0;
