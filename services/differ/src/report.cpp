@@ -67,6 +67,9 @@ std::string render_comparison(const RunRecord& before, const RunRecord& after, c
 		for (const auto& s : c.new_services) j["new_services"].push_back(service_change_json(s));
 		for (const auto& s : c.gone_services) j["gone_services"].push_back(service_change_json(s));
 		for (const auto& s : c.changed_services) j["changed_services"].push_back(service_change_json(s));
+		j["web_changes"] = Json::array();
+		for (const auto& w : c.web_changes)
+			j["web_changes"].push_back({ { "ip", w.ip }, { "port", w.port }, { "protocol", w.protocol }, { "what", w.what }, { "before", w.before }, { "after", w.after } });
 		return dump_json(j, 2) + "\n";
 	}
 
@@ -85,6 +88,12 @@ std::string render_comparison(const RunRecord& before, const RunRecord& after, c
 		[](const ServiceChange& s) { return "~ " + key(s) + "  " + printable(s.before) + " -> " + printable(s.after); });
 	list(out, c.new_services, o.all, [](const ServiceChange& s) { return "+ " + key(s) + "  " + printable(s.after); });
 	list(out, c.gone_services, o.all, [](const ServiceChange& s) { return "- " + key(s) + "  " + printable(s.before); });
+
+	out << "\nweb: " << c.web_changes.size() << " change(s) on services probed in both runs\n";
+	list(out, c.web_changes, o.all, [](const WebChange& w) {
+		return "~ " + w.ip + ":" + std::to_string(w.port) + "/" + w.protocol + "  " + w.what + ": " + (w.before.empty() ? "(none)" : "'" + printable(w.before) + "'") +
+		       " -> " + (w.after.empty() ? "(none)" : "'" + printable(w.after) + "'");
+	});
 	return out.str();
 }
 
