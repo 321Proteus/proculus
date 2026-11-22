@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "server.hpp"
+#include "sim_network.hpp"
 
 using namespace proculus;
 namespace fs = std::filesystem;
@@ -86,8 +87,71 @@ int main() {
 	assert(c.Get("/api/runs", httplib::Headers{{"Host", "proculus.lan:8080"}})->status == 200); // --allow-host
 	assert(c.Get("/api/runs", httplib::Headers{{"Host", "127.0.0.1.attacker.example"}})->status == 403);
 
+	// ---- without scan control, the scan routes say so
+	auto scan_off = c.Get("/api/scan");
+	assert(scan_off && scan_off->status == 200 && Json::parse(scan_off->body)["enabled"] == false);
+	httplib::Headers json_h = {{"Content-Type", "application/json"}};
+	assert(c.Post("/api/scan", json_h, "{}", "application/json")->status == 403);
+	assert(c.Post("/api/other", "{}", "application/json")->status == 405); // POST is only for the scan routes
+
 	server.stop();
 	t.join();
+
+	// ---- with scan control: token, content type, validation, and the Host check still apply
+	{
+		SimNetwork net = SimNetwork::generate(7, "10.20.0.0/22", 0.05);
+		ScanPolicy policy;
+		policy.enabled = true;
+		policy.scope = "10.20.0.0/22";
+		policy.allowed_ports = "22,80,443";
+		RunnerDeps base;
+		base.deadline_watchdog = false;
+		base.make_backend = [&](std::atomic<bool>&) { return std::make_unique<SimBackend>(net); };
+		FileResultStore sstore(dir / "scans");
+		ScanController scans(policy, &sstore, base);
+		ServerConfig scfg;
+		scfg.port = 0;
+		scfg.control_token = "test-token-0123456789abcdef";
+		WebServer sserver(sstore, scfg, &scans);
+		const int sport = sserver.bind();
+		std::thread st([&] { sserver.run(); });
+		httplib::Client sc("127.0.0.1", sport);
+		sc.set_read_timeout(5);
+		const std::string body = R"({"targets":["10.20.0.0/24"]})";
+		const httplib::Headers good = {{"X-Proculus-Token", "test-token-0123456789abcdef"}};
+
+		auto status = sc.Get("/api/scan");
+		assert(status && Json::parse(status->body)["enabled"] == true && Json::parse(status->body)["policy"]["scope"] == "10.20.0.0/22");
+		assert(sc.Post("/api/scan", body, "application/json")->status == 401);            // no token
+		assert(sc.Post("/api/scan/stop", body, "application/json")->status == 401);
+		assert(sc.Post("/api/scan", httplib::Headers{{"X-Proculus-Token", "nope"}}, body, "application/json")->status == 401);
+		assert(sc.Post("/api/scan", good, body, "text/plain")->status == 415);              // not JSON: a plain form post cannot trigger it
+		assert(sc.Post("/api/scan", good, body, "application/x-www-form-urlencoded")->status == 415);
+		assert(sc.Post("/api/scan", good, "{not json", "application/json")->status == 400);
+		assert(sc.Post("/api/scan", good, R"({"targets":["8.8.8.8"]})", "application/json")->status == 400); // outside the scope
+		auto refused = sc.Post("/api/scan", good, R"({"targets":["8.8.8.8"]})", "application/json");
+		assert(Json::parse(refused->body)["error"].get<std::string>().find("outside the allowed scope") != std::string::npos);
+		assert(sc.Post("/api/scan", good, R"({"targets":["10.20.0.1"],"scope":"0.0.0.0/0"})", "application/json")->status == 400);
+		assert(sc.Post("/api/scan", httplib::Headers{{"X-Proculus-Token", "test-token-0123456789abcdef"}, {"Host", "attacker.example"}}, body, "application/json")->status == 403);
+		assert(sstore.list().empty()); // every refused request started nothing
+
+		auto plan = sc.Post("/api/scan/plan", good, body, "application/json");
+		assert(plan && plan->status == 200 && Json::parse(plan->body)["addresses"] == 256);
+		auto started = sc.Post("/api/scan", good, body, "application/json");
+		assert(started && started->status == 200);
+		scans.wait_idle();
+		assert(sstore.list().size() == 1);
+		assert(Json::parse(sc.Get("/api/scan")->body)["last"]["ok"] == true);
+		assert(sc.Post("/api/scan/stop", good, "{}", "application/json")->status == 200); // stopping when idle is harmless
+
+		// guessing the token is limited
+		for (int i = 0; i < 5; i++) sc.Post("/api/scan/stop", httplib::Headers{{"X-Proculus-Token", "guess"}}, "{}", "application/json");
+		assert(sc.Post("/api/scan/stop", good, "{}", "application/json")->status == 429);
+
+		sserver.stop();
+		st.join();
+	}
+
 	fs::remove_all(dir);
 	return 0;
 }

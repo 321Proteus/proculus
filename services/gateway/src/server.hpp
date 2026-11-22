@@ -1,8 +1,9 @@
 #ifndef PROCULUS_GATEWAY_SERVER_HPP
 #define PROCULUS_GATEWAY_SERVER_HPP
 
-// The web server of the gateway: the read-only JSON API that the UI service
-// (services/ui) shows. It serves no pages.
+// The web server of the gateway: the JSON API that the UI service (services/ui)
+// shows. It serves no pages. Everything is read-only except the scan routes
+// (POST /api/scan, /api/scan/plan, /api/scan/stop), which need the control token.
 //
 // Until user accounts exist the server has no authentication, so it is meant
 // for the local machine or a private network between containers: it listens
@@ -15,6 +16,8 @@
 #include <vector>
 
 #include "api.hpp"
+#include "scan_control.hpp"
+#include "token_guard.hpp"
 
 namespace httplib {
 class Server;
@@ -26,11 +29,13 @@ struct ServerConfig {
 	std::string bind = "127.0.0.1";
 	int port = 8081;                           // 0: pick a free port (tests)
 	std::vector<std::string> allowed_hosts;    // besides localhost, 127.0.0.1 and [::1]
+	std::string control_token;                 // needed to start or stop scans (X-Proculus-Token); empty: scans cannot be controlled
 };
 
 class WebServer {
 public:
-	WebServer(const ResultStore& store, ServerConfig config);
+	// `scans` (optional, must outlive the server) enables the scan routes.
+	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr);
 	~WebServer();
 
 	// Binds and returns the port; throws std::runtime_error if that fails.
@@ -43,6 +48,8 @@ private:
 	const ResultStore& store_;
 	ServerConfig config_;
 	Api api_;
+	ScanController* scans_;
+	TokenGuard guard_;
 	std::unique_ptr<httplib::Server> server_;
 	int port_ = 0;
 };

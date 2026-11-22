@@ -3,6 +3,7 @@
 #include <httplib.h>
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
 
 #include "proculus/web/guard.hpp"
@@ -52,8 +53,8 @@ void api_route(httplib::Response& res, Fn&& fn) {
 
 } // namespace
 
-WebServer::WebServer(const ResultStore& store, ServerConfig config)
-	: store_(store), config_(std::move(config)), api_(store_), server_(std::make_unique<httplib::Server>()) {
+WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans)
+	: store_(store), config_(std::move(config)), api_(store_), scans_(scans), guard_(config_.control_token), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
 
 	std::vector<std::string> allowed = web::default_allowed_hosts();
@@ -69,10 +70,11 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config)
 		{"Referrer-Policy", "no-referrer"},
 	});
 
-	// Only reads, and only for names we answer to (see the header comment).
+	// Reads, plus POST to the scan routes only; and only for names we answer to (see the header comment).
 	svr.set_pre_routing_handler([allowed](const httplib::Request& req, httplib::Response& res) {
-		if (req.method != "GET" && req.method != "HEAD") {
-			send_json(res, 405, { { "error", "read-only" } });
+		const bool scan_post = req.method == "POST" && (req.path == "/api/scan" || req.path == "/api/scan/plan" || req.path == "/api/scan/stop");
+		if (req.method != "GET" && req.method != "HEAD" && !scan_post) {
+			send_json(res, 405, { { "error", "not allowed" } });
 			return httplib::Server::HandlerResponse::Handled;
 		}
 		if (!web::host_allowed(req.get_header_value("Host"), allowed)) {
@@ -107,6 +109,38 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config)
 	});
 	svr.Get("/api/diff", [this](const httplib::Request& req, httplib::Response& res) {
 		api_route(res, [&] { return api_.diff(text_param(req, "before", "", 20), text_param(req, "after", "latest", 20)); });
+	});
+	// ---- scans: status is public like the rest; starting and stopping need the control token
+	svr.Get("/api/scan", [this](const httplib::Request&, httplib::Response& res) {
+		api_route(res, [&] { return scans_ ? scans_->status() : Json{{"enabled", false}}; });
+	});
+	auto control = [this](const httplib::Request& req, httplib::Response& res, const std::function<Json(const Json&)>& action) {
+		if (!scans_ || !scans_->enabled()) return send_json(res, 403, {{"error", "scans are not enabled on this server"}});
+		switch (guard_.check(req.get_header_value("X-Proculus-Token"))) {
+		case TokenGuard::Result::Ok: break;
+		case TokenGuard::Result::Disabled: return send_json(res, 403, {{"error", "no control token is configured"}});
+		case TokenGuard::Result::Locked: return send_json(res, 429, {{"error", "too many wrong tokens; try again in a minute"}});
+		case TokenGuard::Result::Denied: return send_json(res, 401, {{"error", "wrong or missing control token"}});
+		}
+		if (req.get_header_value("Content-Type").compare(0, 16, "application/json") != 0) return send_json(res, 415, {{"error", "send JSON"}});
+		const Json body = Json::parse(req.body.empty() ? "{}" : req.body, nullptr, false);
+		if (body.is_discarded()) return send_json(res, 400, {{"error", "the request is not valid JSON"}});
+		api_route(res, [&] { return action(body); });
+	};
+	svr.Post("/api/scan", [this, control](const httplib::Request& req, httplib::Response& res) {
+		control(req, res, [&](const Json& body) -> Json {
+			scans_->start(parse_scan_request(body));
+			return scans_->status();
+		});
+	});
+	svr.Post("/api/scan/plan", [this, control](const httplib::Request& req, httplib::Response& res) {
+		control(req, res, [&](const Json& body) -> Json { return scans_->plan(parse_scan_request(body)); });
+	});
+	svr.Post("/api/scan/stop", [this, control](const httplib::Request& req, httplib::Response& res) {
+		control(req, res, [&](const Json&) -> Json {
+			scans_->stop();
+			return scans_->status();
+		});
 	});
 	svr.Get("/api/hosts", [this](const httplib::Request&, httplib::Response& res) { api_route(res, [&] { return api_.hosts(); }); });
 }
