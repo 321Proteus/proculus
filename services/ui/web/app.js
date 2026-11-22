@@ -108,6 +108,10 @@ const TEXTS = {
 
 // ---- texts added for the new layout (Polish first, as in the Python build)
 Object.assign(TEXTS.pl, {
+  category: 'Kategoria', cat_cms: 'CMS', cat_framework: 'Framework', cat_server: 'Serwer', cat_iot: 'IoT', cat_admin: 'Panel admin.', cat_staging: 'Staging / test', cat_other: 'Inne',
+  importSettings: 'Importuj ustawienia skanu', importTip: 'Wczytuje do formularza plik JSON: {"targets": ["10.0.0.0/24", "example.com"], "exclusions": [...], "ports": [22, 80, 443] lub "22,80,8000-8100", "nmap_processes": 2, "rate": 100, "timing": 3, "web": false}. Wymagane jest tylko "targets". Skan nie jest uruchamiany.',
+  importBad: 'Nie wczytano pliku', importBadJson: 'to nie jest poprawny JSON', importNotObject: 'plik musi zawierać obiekt JSON', importUnknown: 'nieznane pole', importRequired: 'wymagane', importList: 'oczekiwana lista (maks. 200 pozycji)',
+  importText: 'oczekiwany tekst (bez znaków sterujących)', importPorts: 'lista liczb 1–65535 albo tekst typu "22,80,8000-8100"', importTooBig: 'plik jest za duży (maks. 64 KiB)', importLoaded: 'Wczytano z', importFixed: 'poprawiono:', importClamped: 'ograniczono do limitu', importNotAllowed: 'niedozwolone na tym serwerze',
   simBadge: 'SYMULACJA', simTip: 'Skany działają na emulowanej sieci: nic nie jest wysyłane do prawdziwej sieci.',
   portProgress: 'Postęp skanowania portów', tipPortProgress: 'Ile portów tego hosta zostało już sprawdzonych (z listy portów skanu). W trakcie pracy nmapa to szacunek; po zakończeniu porcji jest dokładne.',
   exploredTitle: 'Zbadane ciekawe porty', tipExplored: 'Otwarte porty (ciekawe), które zostały w pełni zbadane: rozpoznana usługa i, dla usług WWW, sprawdzenie sondą. Format: zbadane/otwarte.',
@@ -124,8 +128,8 @@ Object.assign(TEXTS.pl, {
   scanCfgEnabled: 'Skanowanie z interfejsu włączone', scanCfgScope: 'Zakres adresów', scanCfgScopeHint: 'IP, CIDR lub zakresy, po przecinku, np. 10.250.165.0/24', scanCfgPorts: 'Dozwolone porty', scanCfgPortsHint: 'np. 22,80,443,8000-8100',
   scanCfgWorkers: 'Maks. procesów nmap', scanCfgRate: 'Maks. pakietów/s na proces', scanCfgWeb: 'Zezwól na sondowanie WWW', scanCfgPriv: 'Zezwól na skany surowymi gniazdami (wymaga uprawnień)', scanCfgReserved: 'Zezwól na adresy zarezerwowane (loopback itp.; tylko lokalne laboratorium)',
   scanCfgCeiling: 'Twardy limit operatora (--scan-ceiling)', scanCfgNoCeiling: 'brak', scanCfgSave: 'Zapisz ustawienia skanowania', scanCfgSaved: 'Zapisano.',
-  tab_dashboard: '1. Dashboard & Skaner', tab_results: '2. Wyniki & Edycja', tab_changes: '3. Zmiany w czasie (Diff)', tab_targets: '4. Cele (CSV / JSON)',
-  tab_signatures: '5. Własne sygnatury', tab_schedule: '6. Harmonogram & DefectDojo', tab_admin: '7. Administracja RBAC',
+  tab_dashboard: '1. Dashboard & Skaner', tab_results: '2. Wyniki & Edycja', tab_changes: '3. Zmiany w czasie (Diff)',
+  tab_signatures: '4. Własne sygnatury', tab_schedule: '5. Harmonogram & DefectDojo', tab_admin: '6. Administracja RBAC',
   brandSub: 'ATTACK SURFACE INTELLIGENCE', badgeAuthOn: 'LOGOWANIE WŁĄCZONE', badgeAuthOff: 'BEZ LOGOWANIA', badgeScope: 'Zakres skanu', tourBtn: 'Przewodnik', account: 'Konto',
   kpiHosts: 'Aktywne hosty', kpiServices: 'Wykryte usługi', kpiInteresting: 'Panele admina / staging', kpiUnstable: 'Hosty niestabilne',
   tipHosts: 'Liczba unikalnych adresów IP z ostatniego skanu, które odpowiedziały na co najmniej jeden port lub usługę.',
@@ -142,8 +146,7 @@ Object.assign(TEXTS.pl, {
   tipSaveTxt: 'Pobiera podsumowanie ostatniego skanu jako plik tekstowy (.txt).',
   stabilityTitle: 'Monitor stabilności hostów (okresowa dostępność w czasie)', stateCol: 'Stan', sightingsCol: 'Wykrycia', lastRunCol: 'Ostatni skan', allStable: 'Wszystkie hosty odpowiadają stabilnie.',
   resultsTitle: 'Wykryte usługi i artefakty', sub_services: 'Usługi', sub_runs: 'Skany', sub_edits: 'Edycje',
-  soonTitle: 'W przygotowaniu', soonTargets: 'Wczytywanie celów skanowania i wyników z plików CSV / JSON oraz ręczne wprowadzanie danych (formularz). Dane trafią do tego samego potoku co skany: sygnatury, porównania, dashboard.',
-  soonSignatures: 'Przeglądanie wbudowanych sygnatur i tworzenie własnych (format JSON, walidacja i testy przykładów). Na razie sygnatury dodaje się z linii poleceń: signatures lint / http-prober --signatures.',
+  soonTitle: 'W przygotowaniu', soonSignatures: 'Przeglądanie wbudowanych sygnatur i tworzenie własnych (format JSON, walidacja i testy przykładów). Na razie sygnatury dodaje się z linii poleceń: signatures lint / http-prober --signatures.',
   soonSchedule: 'Harmonogram cyklicznych skanów (okno czasowe, częstotliwość) i eksport obserwacji do DefectDojo. Na razie: runner --window --interval oraz scheduler.',
   gateSub: 'Attack Surface Intelligence', gateBadge: 'Sesja z tokenem • role RBAC', loginBtn: 'Zaloguj do konsoli Proculus', setupSub: 'Inicjalizacja • pierwsze uruchomienie',
   tourTitle: 'PROCULUS — Przewodnik', tourStep: 'Krok', tourOf: 'z', tourSkip: 'Pomiń', tourPrev: '◀ Wstecz', tourNext: 'Dalej ▶', tourFinish: 'Zakończ ✔',
@@ -159,6 +162,10 @@ Object.assign(TEXTS.pl, {
   scanRunning: 'W toku', scanStopped: 'Zatrzymany', finishedOk: 'Zakończony',
 });
 Object.assign(TEXTS.en, {
+  category: 'Category', cat_cms: 'CMS', cat_framework: 'Framework', cat_server: 'Server', cat_iot: 'IoT', cat_admin: 'Admin panel', cat_staging: 'Staging / test', cat_other: 'Other',
+  importSettings: 'Import scan settings', importTip: 'Loads a JSON file into the form: {"targets": ["10.0.0.0/24", "example.com"], "exclusions": [...], "ports": [22, 80, 443] or "22,80,8000-8100", "nmap_processes": 2, "rate": 100, "timing": 3, "web": false}. Only "targets" is required. No scan is started.',
+  importBad: 'The file was not loaded', importBadJson: 'not valid JSON', importNotObject: 'the file must hold a JSON object', importUnknown: 'unknown field', importRequired: 'required', importList: 'expected a list (at most 200 entries)',
+  importText: 'expected text (no control characters)', importPorts: 'a list of numbers 1–65535 or text such as "22,80,8000-8100"', importTooBig: 'the file is too big (64 KiB at most)', importLoaded: 'Loaded from', importFixed: 'fixed:', importClamped: 'limited to the maximum', importNotAllowed: 'not allowed on this server',
   simBadge: 'SIMULATION', simTip: 'Scans run on an emulated network: nothing is sent to a real network.',
   portProgress: 'Port scan progress', tipPortProgress: 'How many of this host\'s ports (from the scan\'s port list) have been checked. An estimate while nmap is working, exact once its chunk is done.',
   exploredTitle: 'Interesting ports explored', tipExplored: 'Open (interesting) ports that have been examined in full: service identified and, for web services, probed. Shown as explored/open.',
@@ -175,8 +182,8 @@ Object.assign(TEXTS.en, {
   scanCfgEnabled: 'Scanning from the UI enabled', scanCfgScope: 'Address scope', scanCfgScopeHint: 'IPs, CIDRs or ranges, comma separated, e.g. 10.250.165.0/24', scanCfgPorts: 'Allowed ports', scanCfgPortsHint: 'e.g. 22,80,443,8000-8100',
   scanCfgWorkers: 'Max nmap processes', scanCfgRate: 'Max packets/s per process', scanCfgWeb: 'Allow web probing', scanCfgPriv: 'Allow raw-socket scans (needs privileges)', scanCfgReserved: 'Allow reserved addresses (loopback etc.; local lab only)',
   scanCfgCeiling: "Operator's hard limit (--scan-ceiling)", scanCfgNoCeiling: 'none', scanCfgSave: 'Save scan settings', scanCfgSaved: 'Saved.',
-  tab_dashboard: '1. Dashboard & Scanner', tab_results: '2. Results & Edit', tab_changes: '3. Changes over time (Diff)', tab_targets: '4. Targets (CSV / JSON)',
-  tab_signatures: '5. Custom signatures', tab_schedule: '6. Schedule & DefectDojo', tab_admin: '7. Administration (RBAC)',
+  tab_dashboard: '1. Dashboard & Scanner', tab_results: '2. Results & Edit', tab_changes: '3. Changes over time (Diff)',
+  tab_signatures: '4. Custom signatures', tab_schedule: '5. Schedule & DefectDojo', tab_admin: '6. Administration (RBAC)',
   brandSub: 'ATTACK SURFACE INTELLIGENCE', badgeAuthOn: 'LOGIN ON', badgeAuthOff: 'NO LOGIN', badgeScope: 'Scan scope', tourBtn: 'Guide', account: 'Account',
   kpiHosts: 'Active hosts', kpiServices: 'Detected services', kpiInteresting: 'Admin panels / staging', kpiUnstable: 'Unstable hosts',
   tipHosts: 'Unique IP addresses of the latest scan that answered on at least one port or service.',
@@ -193,8 +200,7 @@ Object.assign(TEXTS.en, {
   tipSaveTxt: 'Downloads the summary of the latest scan as a text file (.txt).',
   stabilityTitle: 'Host stability monitor (availability over time)', stateCol: 'State', sightingsCol: 'Sightings', lastRunCol: 'Last run', allStable: 'All hosts answer reliably.',
   resultsTitle: 'Detected services and artefacts', sub_services: 'Services', sub_runs: 'Runs', sub_edits: 'Edits',
-  soonTitle: 'Coming soon', soonTargets: 'Loading scan targets and results from CSV / JSON files, and entering data by hand (a form). The data will go through the same pipeline as scans: signatures, comparison, dashboard.',
-  soonSignatures: 'Browsing the built-in signatures and writing your own (JSON format, validation and example tests). For now signatures are added from the command line: signatures lint / http-prober --signatures.',
+  soonTitle: 'Coming soon', soonSignatures: 'Browsing the built-in signatures and writing your own (JSON format, validation and example tests). For now signatures are added from the command line: signatures lint / http-prober --signatures.',
   soonSchedule: 'A schedule of recurring scans (time window, frequency) and exporting observations to DefectDojo. For now: runner --window --interval, and the scheduler.',
   gateSub: 'Attack Surface Intelligence', gateBadge: 'Token sessions • RBAC roles', loginBtn: 'Sign in to the Proculus console', setupSub: 'Initialisation • first run',
   tourTitle: 'PROCULUS — Guide', tourStep: 'Step', tourOf: 'of', tourSkip: 'Skip', tourPrev: '◀ Back', tourNext: 'Next ▶', tourFinish: 'Finish ✔',
@@ -292,6 +298,12 @@ const when = (iso) => (iso || '').replace('T', ' ').replace(/:\d\dZ$/, 'Z');
 const go = (route, params) => { location.hash = '#/' + route + (params && qs(params) ? '?' + qs(params) : ''); };
 const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Technologies are split into categories (the signatures' own: cms, framework, server, iot, admin, staging, other; custom signatures may add more).
+const CATEGORIES = ['cms', 'framework', 'server', 'iot', 'admin', 'staging', 'other'];
+const catClass = (c) => 'cat-' + (/^[a-z0-9_-]{1,20}$/.test(c) ? c : 'other');
+const catLabel = (c) => { const k = 'cat_' + c; const v = TEXTS[lang] && TEXTS[lang][k]; return v || c; };
+function techChip(x) { return el('span', { class: 'chip tech ' + catClass(x.category), title: catLabel(x.category) }, x.name + (x.version ? ' ' + x.version : '')); }
+
 function score(n, level) { return el('span', { class: 'score ' + level, title: t(level) }, String(n)); }
 
 // a card heading with an optional tooltip; `tip` is read by the global tooltip handler
@@ -353,7 +365,7 @@ function serviceRow(f, onclick) {
     el('td', {}, f.service),
     el('td', {}, f.title),
     el('td', {}, f.status ? el('span', { class: 'chip st-' + f.status }, t('st_' + f.status)) : null, env ? el('span', { class: 'chip' }, t('env_' + env)) : null,
-      tags.map((x) => el('span', { class: 'chip' }, '#' + x)), f.detections.map((d) => el('span', { class: 'chip' }, d)), notes ? el('div', { class: 'note', title: notes }, '✎ ' + notes) : null),
+      tags.map((x) => el('span', { class: 'chip' }, '#' + x)), (f.technologies || []).map(techChip), notes ? el('div', { class: 'note', title: notes }, '✎ ' + notes) : null),
     el('td', {}, f.reasons.length ? el('ul', { class: 'reasons' }, f.reasons.map((r) => el('li', {}, r))) : ''),
     can('data.edit') ? el('td', {}, el('button', { class: 'sec', onclick: (e) => { e.stopPropagation(); openEdit(f); } }, t('edit'))) : null);
 }
@@ -543,6 +555,52 @@ function userPresets() {
 }
 function storeUserPresets(list) { try { localStorage.setItem(presetKey(), JSON.stringify(list.slice(0, 50))); } catch (e) { /* ignore */ } }
 
+// ---------------------------------------------------------------- import of scan settings (fixed scheme, v1)
+//   { "targets": ["192.168.1.0/24", "example.com"], "exclusions": ["192.168.1.1"], "ports": [22, 80, 443] or "22,80,8000-8100",
+//     "nmap_processes": 2, "rate": 100, "timing": 3, "web": false, "privileged": false }
+// Only "targets" is required. The file only fills in the form: the gateway checks everything again when a scan is planned or started.
+const SETTINGS_KEYS = ['targets', 'exclusions', 'ports', 'nmap_processes', 'rate', 'timing', 'web', 'privileged'];
+function parseSettingsFile(text) {
+  let j;
+  try { j = JSON.parse(text); } catch (e) { throw new Error(t('importBadJson')); }
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error(t('importNotObject'));
+  for (const k of Object.keys(j)) if (!SETTINGS_KEYS.includes(k)) throw new Error(t('importUnknown') + ' "' + k.slice(0, 40) + '" (' + SETTINGS_KEYS.join(', ') + ')');
+  const notes = [];
+  const strings = (key, required) => {
+    const v = j[key];
+    if (v === undefined) { if (required) throw new Error('"' + key + '": ' + t('importRequired')); return []; }
+    if (!Array.isArray(v) || v.length > 200) throw new Error('"' + key + '": ' + t('importList'));
+    return v.map((x) => {
+      if (typeof x !== 'string' || !x.trim() || x.length > 200 || /[\u0000-\u001f]/.test(x)) throw new Error('"' + key + '": ' + t('importText'));
+      const fixed = x.trim().replace(/\\/g, '/'); // a backslash in a network such as 10.0.0.0\24 is a slip for a slash
+      if (fixed !== x.trim()) notes.push(x.trim() + ' → ' + fixed);
+      return fixed;
+    });
+  };
+  const whole = (key, lo, hi) => {
+    if (j[key] === undefined) return undefined;
+    if (!Number.isInteger(j[key]) || j[key] < lo || j[key] > hi) throw new Error('"' + key + '": ' + lo + '–' + hi);
+    return j[key];
+  };
+  const flag = (key) => {
+    if (j[key] === undefined) return undefined;
+    if (typeof j[key] !== 'boolean') throw new Error('"' + key + '": true / false');
+    return j[key];
+  };
+  const out = { targets: strings('targets', true), exclusions: strings('exclusions', false), notes };
+  if (!out.targets.length) throw new Error('"targets": ' + t('importRequired'));
+  if (j.ports !== undefined) {
+    if (Array.isArray(j.ports)) {
+      if (j.ports.length > 5000 || !j.ports.every((p) => Number.isInteger(p) && p >= 1 && p <= 65535)) throw new Error('"ports": 1–65535');
+      out.ports = j.ports.join(',');
+    } else if (typeof j.ports === 'string' && j.ports.length <= 200 && /^[0-9,\- ]*$/.test(j.ports)) out.ports = j.ports.replace(/\s+/g, '');
+    else throw new Error('"ports": ' + t('importPorts'));
+  }
+  out.workers = whole('nmap_processes', 1, 64); out.rate = whole('rate', 1, 100000); out.timing = whole('timing', 0, 4);
+  out.web = flag('web'); out.privileged = flag('privileged');
+  return out;
+}
+
 function scanFormCard(s, onStarted) {
   if (!s.enabled) return el('div', { class: 'card', id: 'tour-config' }, el('h3', {}, t('cfgTitle')), el('div', { class: 'empty' }, el('b', {}, t('scanUnavailable')), el('p', {}, t('scanDisabledHint'))));
   if (!can('scan.run')) return el('div', { class: 'card', id: 'tour-config' }, el('h3', {}, t('cfgTitle')), el('div', { class: 'empty' }, t('scanForbidden')));
@@ -599,6 +657,30 @@ function scanFormCard(s, onStarted) {
       planBox.replaceChildren(el('div', { class: 'eta-box' }, el('ul', { class: 'reasons' }, lines.concat(r.warnings).map((l) => el('li', {}, l)))));
     } catch (e) { fail(e); }
   } }, t('plan')));
+  // loads a settings file into the form (the form stays editable; nothing is started)
+  const fileInput = el('input', { type: 'file', accept: 'application/json,.json', hidden: true, 'aria-hidden': 'true', tabindex: '-1' });
+  const importBtn = tip(t('importSettings'), t('importTip'), el('button', { class: 'sec', onclick: () => fileInput.click() }, '⇪ ' + t('importSettings')));
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    message.replaceChildren(); planBox.replaceChildren();
+    try {
+      if (file.size > 64 * 1024) throw new Error(t('importTooBig'));
+      const cfg = parseSettingsFile(await file.text());
+      const notes = cfg.notes.map((n) => t('importFixed') + ' ' + n);
+      targets.value = cfg.targets.join('\n'); exclusions.value = cfg.exclusions.join('\n');
+      if (cfg.ports !== undefined) ports.value = cfg.ports;
+      if (cfg.workers !== undefined) { workers.value = Math.min(cfg.workers, p.max_workers); if (cfg.workers > p.max_workers) notes.push(t('importClamped') + ': nmap_processes ' + cfg.workers + ' → ' + p.max_workers); }
+      if (cfg.rate !== undefined) { rate.value = Math.min(cfg.rate, p.max_rate); if (cfg.rate > p.max_rate) notes.push(t('importClamped') + ': rate ' + cfg.rate + ' → ' + p.max_rate); }
+      if (cfg.timing !== undefined) timing.value = String(cfg.timing);
+      if (cfg.web !== undefined) { web.checked = cfg.web && p.allow_web; if (cfg.web && !p.allow_web) notes.push(t('importNotAllowed') + ': web'); }
+      if (cfg.privileged !== undefined) { priv.checked = cfg.privileged && p.allow_privileged; if (cfg.privileged && !p.allow_privileged) notes.push(t('importNotAllowed') + ': privileged'); }
+      presetSel.value = ''; delPreset.hidden = true;
+      message.replaceChildren(el('div', { class: 'ok-note' }, t('importLoaded') + ' ' + file.name.slice(0, 60) + ': ' + cfg.targets.length + ' ' + t('targets').toLowerCase() + (cfg.ports !== undefined ? ', ' + t('ports').toLowerCase() + ' ' + cfg.ports.slice(0, 40) : '')),
+        notes.length ? el('div', { class: 'err warn' }, notes.map((n) => el('div', {}, n))) : null);
+    } catch (e) { message.replaceChildren(el('div', { class: 'err' }, t('importBad') + ': ' + e.message)); }
+  });
   const saveBtn = el('button', { class: 'sec', onclick: () => {
     message.replaceChildren();
     const r = request();
@@ -622,10 +704,11 @@ function scanFormCard(s, onStarted) {
     p.allow_web ? tip(t('web'), t('tipWeb'), el('label', { class: 'check' }, web, ' ' + t('web'))) : null,
     p.allow_privileged ? el('label', { class: 'check' }, priv, ' ' + t('privileged')) : null,
     auth && auth.enabled ? null : field(t('token'), t('tokenHint'), token));
-  const node = el('div', { class: 'card', id: 'tour-config' }, el('h3', {}, t('cfgTitle')),
+  const node = el('div', { class: 'card', id: 'tour-config' },
+    el('div', { class: 'toolbar', style: 'justify-content:space-between;margin-bottom:6px' }, el('h3', { style: 'margin:0' }, t('cfgTitle')), importBtn, fileInput),
     el('p', { class: 'sub', style: 'font-size:12px' }, t('limits') + ': ' + t('scope') + ' ' + p.scope + ' · ' + t('allowedPorts') + ' ' + p.allowed_ports + ' · ' + t('maxWorkers') + ' ' + p.max_workers + ' · ' + t('maxRate') + ' ' + p.max_rate),
     fieldset, el('div', { class: 'toolbar', id: 'tour-start', style: 'margin-top:14px;margin-bottom:0' }, startBtn, planBtn, saveBtn), message, planBox);
-  node.setBusy = (busy) => { fieldset.disabled = busy; startBtn.disabled = busy; planBtn.disabled = busy; saveBtn.disabled = busy; };
+  node.setBusy = (busy) => { fieldset.disabled = busy; startBtn.disabled = busy; planBtn.disabled = busy; saveBtn.disabled = busy; importBtn.disabled = busy; };
   return node;
 }
 
@@ -699,7 +782,7 @@ async function viewDashboard() {
 
   const charts = empty ? null : el('div', { class: 'grid-3' },
     el('div', { class: 'card' }, el('h3', {}, t('byLevel')), bars(d.levels.map((l) => ({ name: t(l.level), count: l.count, level: l.level })), (r) => r.name, (r) => r.level)),
-    el('div', { class: 'card' }, el('h3', {}, t('byCategory')), bars(d.categories, (r) => r.category)),
+    el('div', { class: 'card' }, el('h3', {}, t('byCategory')), bars(d.categories, (r) => catLabel(r.category))),
     el('div', { class: 'card' }, el('h3', {}, t('technologies')), bars(d.technologies, (r) => r.name)));
 
   const names = ['new', 'active', 'flapping', 'stale', 'gone'];
@@ -715,7 +798,7 @@ async function viewDashboard() {
 // ---- results: services (with filters and editing), runs, edits
 // ---------------------------------------------------------------- export: the user's own text format
 // Templates are filled in by the gateway ({ip}:{port}, {service|csv} ...); the formats a user saves stay in this browser.
-const EXPORT_FIELDS = ['ip', 'port', 'protocol', 'service', 'title', 'hostname', 'score', 'level', 'status', 'detections', 'reasons', 'run', 'n'];
+const EXPORT_FIELDS = ['ip', 'port', 'protocol', 'service', 'title', 'hostname', 'score', 'level', 'status', 'detections', 'cms', 'framework', 'server', 'iot', 'admin', 'staging', 'other', 'categories', 'reasons', 'run', 'n'];
 const EXPORT_BUILTIN = [
   { key: 'fmtIps', row: '{ip}', header: '', footer: '', unique: true },
   { key: 'fmtIpPort', row: '{ip}:{port}', header: '', footer: '', unique: false },
@@ -818,7 +901,7 @@ function exportCard(filters) {
 async function viewServices(params) {
   const runs = await api('/api/runs');
   if (!runs.length) return el('div', { class: 'card empty' }, el('h3', {}, t('noRuns')), el('p', {}, t('noRunsHint')));
-  const state = { run: params.run || 'latest', q: params.q || '', min: params.min || '0', offset: Number(params.offset || 0), hide: params.hide === '1', edited: params.edited === '1' };
+  const state = { run: params.run || 'latest', q: params.q || '', min: params.min || '0', offset: Number(params.offset || 0), hide: params.hide === '1', edited: params.edited === '1', category: params.category || '' };
   const out = el('div', {});
   const table = el('div', {});
   const exportBox = el('div', {});
@@ -826,7 +909,7 @@ async function viewServices(params) {
   async function load() {
     table.replaceChildren(el('p', { class: 'sub' }, t('loading')));
     try {
-      const r = await api('/api/services?' + qs({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, limit: 50, offset: state.offset, hide: state.hide ? '1' : '', edited: state.edited ? '1' : '' }));
+      const r = await api('/api/services?' + qs({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, limit: 50, offset: state.offset, hide: state.hide ? '1' : '', edited: state.edited ? '1' : '', category: state.category }));
       const from = r.total ? r.offset + 1 : 0, to = Math.min(r.offset + r.limit, r.total);
       table.replaceChildren(
         r.services.length ? el('div', { class: 'table-wrap' }, el('table', {}, servicesHead(), el('tbody', {}, r.services.map((f) => serviceRow(f))))) : el('div', { class: 'empty' }, t('none')),
@@ -843,11 +926,13 @@ async function viewServices(params) {
   search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { state.q = search.value.trim(); state.offset = 0; load(); }, 250); });
   const minSel = el('select', { style: 'width:auto', onchange: (e) => { state.min = e.target.value; state.offset = 0; load(); } },
     [['0', t('any')], ['15', '≥ 15 (' + t('low') + ')'], ['40', '≥ 40 (' + t('medium') + ')'], ['70', '≥ 70 (' + t('high') + ')']].map(([v, l]) => el('option', { value: v, selected: v === state.min }, t('minScore') + ': ' + l)));
+  const catSel = el('select', { style: 'width:auto', 'aria-label': t('category'), onchange: (e) => { state.category = e.target.value; state.offset = 0; load(); } },
+    el('option', { value: '' }, t('category') + ': ' + t('any')), CATEGORIES.map((c) => el('option', { value: c, selected: c === state.category }, t('category') + ': ' + catLabel(c))));
   const hideBox = el('input', { type: 'checkbox', checked: state.hide, onchange: (e) => { state.hide = e.target.checked; state.offset = 0; load(); } });
   const editedBox = el('input', { type: 'checkbox', checked: state.edited, onchange: (e) => { state.edited = e.target.checked; state.offset = 0; load(); } });
   out.append(el('div', { class: 'card' }, el('h3', {}, t('resultsTitle')),
-    el('div', { class: 'toolbar' }, search, minSel, runSel, el('label', { class: 'check', style: 'margin:0' }, hideBox, ' ' + t('hideIgnored')), el('label', { class: 'check', style: 'margin:0' }, editedBox, ' ' + t('onlyEdited')),
-      can('export') ? el('button', { class: 'sec', onclick: () => { if (exportBox.firstChild) exportBox.replaceChildren(); else exportBox.append(exportCard(() => ({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, hide: state.hide ? '1' : '', edited: state.edited ? '1' : '' }))); } }, t('exportBtn')) : null),
+    el('div', { class: 'toolbar' }, search, minSel, catSel, runSel, el('label', { class: 'check', style: 'margin:0' }, hideBox, ' ' + t('hideIgnored')), el('label', { class: 'check', style: 'margin:0' }, editedBox, ' ' + t('onlyEdited')),
+      can('export') ? el('button', { class: 'sec', onclick: () => { if (exportBox.firstChild) exportBox.replaceChildren(); else exportBox.append(exportCard(() => ({ run: state.run, q: state.q, min_score: state.min === '0' ? '' : state.min, hide: state.hide ? '1' : '', edited: state.edited ? '1' : '', category: state.category }))); } }, t('exportBtn')) : null),
     exportBox, table));
   load();
   return out;
@@ -1061,10 +1146,10 @@ function renderHeader() {
       signedIn ? el('button', { class: 'sec', onclick: async () => { try { await post('/api/logout'); } catch (e) { /* the session may be gone already */ } setSession('', null); location.hash = '#/dashboard'; render(); } }, t('signOut')) : null));
 }
 
-const ROUTES = { dashboard: viewDashboard, results: viewResults, changes: viewChanges, targets: viewSoon('soonTargets', 'tab_targets'), signatures: viewSoon('soonSignatures', 'tab_signatures'), schedule: viewSoon('soonSchedule', 'tab_schedule'), admin: viewAdmin };
-const ROUTE_PERMISSION = { dashboard: 'data.read', results: 'data.read', changes: 'data.read', targets: 'data.read', signatures: 'data.read', schedule: 'data.read', admin: 'users.manage' };
-const SOON = new Set(['targets', 'signatures', 'schedule']);
-const ALIASES = { services: ['results', { view: 'services' }], runs: ['results', { view: 'runs' }], edits: ['results', { view: 'edits' }], scan: ['dashboard', {}] }; // links of the earlier layout keep working
+const ROUTES = { dashboard: viewDashboard, results: viewResults, changes: viewChanges, signatures: viewSoon('soonSignatures', 'tab_signatures'), schedule: viewSoon('soonSchedule', 'tab_schedule'), admin: viewAdmin };
+const ROUTE_PERMISSION = { dashboard: 'data.read', results: 'data.read', changes: 'data.read', signatures: 'data.read', schedule: 'data.read', admin: 'users.manage' };
+const SOON = new Set(['signatures', 'schedule']);
+const ALIASES = { services: ['results', { view: 'services' }], runs: ['results', { view: 'runs' }], edits: ['results', { view: 'edits' }], scan: ['dashboard', {}], targets: ['dashboard', {}] }; // links of the earlier layout keep working
 
 function parseHash() {
   const raw = location.hash.replace(/^#\/?/, '');

@@ -25,6 +25,7 @@ struct ServicesQuery {
 	size_t offset = 0;
 	bool hide_ignored = false; // leave out services whose (edited) status is ignored or false_positive
 	bool only_edited = false;  // only services or hosts somebody has edited
+	std::string category;      // only services with a technology of this category (cms, framework, server, iot, admin, staging, other, ...)
 };
 
 struct ExportQuery {

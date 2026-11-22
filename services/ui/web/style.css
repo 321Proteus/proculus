@@ -193,3 +193,13 @@ fieldset.plain { border: 0; margin: 0; padding: 0; min-width: 0; }
 .host-count { font-size: 10.5px; color: var(--muted); min-width: 58px; }
 .host-expl { font-size: 10.5px; color: var(--warn); font-weight: 700; min-width: 40px; }
 .host-expl.all { color: var(--ok); }
+
+/* technologies by category */
+.chip.tech { border: 1px solid transparent; font-weight: 600; }
+.chip.cat-cms { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.chip.cat-framework { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.chip.cat-server { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.chip.cat-iot { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.chip.cat-admin { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.chip.cat-staging { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.chip.cat-other { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }

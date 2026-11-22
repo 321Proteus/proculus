@@ -1,0 +1,9 @@
+{
+	"targets": ["192.168.243.0/24", "example.com"],
+	"exclusions": ["192.168.243.1"],
+	"ports": [22, 80, 443, 8080],
+	"nmap_processes": 2,
+	"rate": 100,
+	"timing": 3,
+	"web": true
+}

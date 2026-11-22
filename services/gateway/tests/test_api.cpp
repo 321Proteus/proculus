@@ -103,6 +103,19 @@ int main() {
 		const std::string csv = api.export_text("latest", q)["text"];
 		assert(csv.find("ip,port,host,service,title (2 rows, run 2)\n") == 0 && csv.rfind("# end\n") == csv.size() - 6);
 		assert(csv.find("10.0.0.1,443,db-admin,nginx 1.24.0,phpMyAdmin <\n") != std::string::npos);
+		// technologies split by category: in the data, as a filter, and as export placeholders
+		{
+			ServicesQuery sq;
+			sq.category = "admin";
+			const Json adm = api.services("latest", sq);
+			assert(adm["total"] == 1 && adm["services"][0]["technologies"][0]["name"] == "phpMyAdmin" && adm["services"][0]["technologies"][0]["category"] == "admin");
+			sq.category = "cms";
+			assert(api.services("latest", sq)["total"] == 0);
+			ExportQuery cq;
+			cq.row = "{ip}:{port} [{categories}] admin={admin|default:-} cms={cms|default:-}";
+			cq.filter.category = "admin";
+			assert(api.export_text("latest", cq)["text"] == "10.0.0.1:443 [admin] admin=phpMyAdmin cms=-\n");
+		}
 		// older run, filters, limit
 		q = ExportQuery();
 		q.row = "{n} {ip} {level|upper}";

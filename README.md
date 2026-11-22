@@ -101,8 +101,8 @@ telemetry on the first tab. Differences are deliberate: the live panels are upda
 of being rebuilt (no flicker; the log keeps its scroll position unless you are at the bottom), the
 guided tour ("Przewodnik") measures its target only after the smooth scroll has stopped and is
 repositioned on resize, tooltips appear at the pointer, status dots actually pulse, and all motion
-is off for users who prefer reduced motion. Tabs 4-6 (CSV/JSON targets, custom signatures,
-schedule and DefectDojo) are placeholders for now.
+is off for users who prefer reduced motion. Tabs 4-5 (custom signatures, schedule and
+DefectDojo) are placeholders for now.
 
 A dashboard over the saved runs (Polish or English): size of the latest run and
 what changed since the previous one, services ranked by priority with the
@@ -139,6 +139,26 @@ controller, planner, runner and web stage, but the hosts, services and web serve
 emulated network, the header shows a SIMULATION badge, and scans take a few seconds so the
 live view and the stop button behave as with nmap. Use a store of its own (VS Code:
 "Proculus (simulation)").
+
+**Importing scan settings.** "Import scan settings" on the New scan card loads a JSON file
+into the form (nothing is started; you can still change everything). The scheme is fixed
+([example](services/ui/examples/scan-settings.json)); only `targets` is required:
+
+```json
+{ "targets": ["192.168.243.0/24", "example.com"], "exclusions": ["192.168.243.1"],
+  "ports": [22, 80, 443, 8080], "nmap_processes": 2, "rate": 100, "timing": 3, "web": false, "privileged": false }
+```
+
+`ports` is a list of numbers or text such as `"22,80,8000-8100"`; unknown fields are refused.
+Values above the administrator's limits are cut down to them (and the form says so), and the
+gateway checks the scope and ports again when a scan is planned or started.
+
+**Technology categories.** Detections are split into the signatures' categories: `cms`,
+`framework`, `server`, `iot`, `admin`, `staging` and `other` (custom signatures may add
+their own). Results shows each technology as a chip coloured by its category, with a
+category filter (`GET /api/services?category=cms`); the export templates have a placeholder
+for each (`{cms}`, `{framework}`, `{server}`, `{iot}`, `{admin}`, `{staging}`, `{other}`) and
+`{categories}` for the ones present, for example `{ip}:{port} {cms|default:-}`.
 
 **Presets.** The New scan form offers ready-made presets to every user, built from the
 machine the gateway runs on: `localhost` (common ports), `local hosts` (this machine and

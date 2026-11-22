@@ -186,6 +186,7 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			q.offset = number_param(req, "offset", 0, 100000000);
 			q.hide_ignored = text_param(req, "hide", "") == "1";
 			q.only_edited = text_param(req, "edited", "") == "1";
+			q.category = text_param(req, "category", "", 30);
 			return api_.services(text_param(req, "run", "latest", 20), q);
 		});
 	});
@@ -196,6 +197,7 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 			q.filter.min_score = static_cast<int>(number_param(req, "min_score", 0, 100));
 			q.filter.hide_ignored = text_param(req, "hide", "") == "1";
 			q.filter.only_edited = text_param(req, "edited", "") == "1";
+			q.filter.category = text_param(req, "category", "", 30);
 			q.row = text_param(req, "row", "", 600);
 			q.header = text_param(req, "header", "", 600);
 			q.footer = text_param(req, "footer", "", 600);

@@ -92,9 +92,15 @@ void sort_views(std::vector<View>& views) {
 	});
 }
 
+Json technologies_json(const Finding& f) {
+	Json a = Json::array();
+	for (const Technology& t : f.technologies) a.push_back({ { "name", t.name }, { "version", t.version }, { "category", t.category } });
+	return a;
+}
+
 Json finding_json(const Finding& f) {
 	return { { "ip", f.ip }, { "hostname", f.hostname }, { "port", f.port }, { "protocol", f.protocol }, { "service", f.service }, { "title", f.title },
-		{ "score", f.score }, { "level", f.level }, { "reasons", f.reasons }, { "detections", f.detections } };
+		{ "score", f.score }, { "level", f.level }, { "reasons", f.reasons }, { "detections", f.detections }, { "technologies", technologies_json(f) } };
 }
 
 bool keep(const View& v, const ServicesQuery& q, const std::string& needle) {
@@ -102,6 +108,11 @@ bool keep(const View& v, const ServicesQuery& q, const std::string& needle) {
 	if (f.score < q.min_score) return false;
 	if (q.hide_ignored && hidden(v)) return false;
 	if (q.only_edited && !v.edited) return false;
+	if (!q.category.empty()) {
+		bool any = false;
+		for (const Technology& t : f.technologies) any = any || t.category == q.category;
+		if (!any) return false;
+	}
 	if (!needle.empty()) {
 		std::string hay = lower(f.ip + " " + f.hostname + " " + v.scan_hostname + " " + f.service + " " + f.title + " " + std::to_string(f.port) + " " + v.status + " " + v.search);
 		for (const std::string& d : f.detections) hay += " " + lower(d);
@@ -220,7 +231,7 @@ Json Api::services(const std::string& which, const ServicesQuery& q) const {
 Json Api::export_text(const std::string& which, const ExportQuery& q) const {
 	if (q.limit < 1 || q.limit > 100000) throw ApiError(400, "limit must be 1..100000");
 	if (q.row.empty()) throw ApiError(400, "give a row template, for example {ip}:{port}");
-	static const std::set<std::string> row_names = {"ip", "hostname", "port", "protocol", "service", "title", "score", "level", "status", "detections", "reasons", "run", "n"};
+	static const std::set<std::string> row_names = {"ip", "hostname", "port", "protocol", "service", "title", "score", "level", "status", "detections", "reasons", "run", "n", "cms", "framework", "server", "iot", "admin", "staging", "other", "categories"};
 	static const std::set<std::string> edge_names = {"run", "count"};
 	const RowTemplate row = RowTemplate::parse(q.row, row_names, "row template");
 	const RowTemplate header = RowTemplate::parse(q.header, edge_names, "header");
@@ -260,7 +271,16 @@ Json Api::export_text(const std::string& which, const ExportQuery& q) const {
 			if (name == "detections") return join(f.detections);
 			if (name == "reasons") return join(f.reasons);
 			if (name == "run") return std::to_string(run.id);
-			return std::to_string(index); // n
+			if (name == "n") return std::to_string(index);
+			if (name == "categories") { // the categories present, once each
+				std::set<std::string> cats;
+				for (const Technology& t : f.technologies) cats.insert(t.category);
+				return join(std::vector<std::string>(cats.begin(), cats.end()));
+			}
+			std::vector<std::string> names; // cms, framework, server, iot, admin, staging, other: the technologies of that category
+			for (const Technology& t : f.technologies)
+				if (t.category == name) names.push_back(t.name + (t.version.empty() ? "" : " " + t.version));
+			return join(names);
 		});
 		if (q.unique && !seen.insert(line).second) continue;
 		if (lines.size() >= q.limit || bytes + line.size() > kMaxBytes) {

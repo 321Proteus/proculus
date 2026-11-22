@@ -82,6 +82,9 @@ int main() {
 	assert(page->get_header_value("X-Content-Type-Options") == "nosniff" && page->get_header_value("X-Frame-Options") == "DENY");
 	auto js = c.Get("/app.js");
 	assert(js && js->status == 200 && js->get_header_value("Content-Type").find("javascript") != std::string::npos);
+	// the settings import has a fixed scheme, and the placeholder tab for it is gone
+	assert(js->body.find("parseSettingsFile") != std::string::npos && js->body.find("nmap_processes") != std::string::npos);
+	assert(js->body.find("soonTargets") == std::string::npos && js->body.find("tab_targets") == std::string::npos);
 	assert(js->body.find("setAttribute('style'") == std::string::npos && js->body.find("style.cssText") != std::string::npos); // styles go through the CSSOM: the policy blocks style attributes
 	assert(js->body.find("textContent") != std::string::npos && js->body.find("innerHTML") == std::string::npos); // untrusted text goes in as text only
 	auto icon = c.Get("/favicon.svg");

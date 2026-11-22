@@ -15,6 +15,11 @@
 namespace proculus {
 
 // One service of one host with its score: a row of the findings table.
+// One technology detected on a service, for showing and filtering by category (cms, framework, server, iot, admin, staging, other, or a custom signature's own).
+struct Technology {
+	std::string name, version, category;
+};
+
 struct Finding {
 	std::string ip, hostname;
 	uint16_t port = 0;
@@ -24,6 +29,7 @@ struct Finding {
 	std::string level;
 	std::vector<std::string> reasons;
 	std::vector<std::string> detections; // "WordPress 6.4.2"
+	std::vector<Technology> technologies; // the same, split into name, version and category
 };
 
 // Every service of the run, most interesting first (then by address, port).

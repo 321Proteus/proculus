@@ -37,7 +37,10 @@ std::vector<Finding> list_findings(const RunRecord& run) {
 			f.service = describe(s);
 			if (s.web) {
 				f.title = s.web->title;
-				for (const DetectionRecord& d : s.web->detections) f.detections.push_back(d.name + (d.version.empty() ? "" : " " + d.version));
+				for (const DetectionRecord& d : s.web->detections) {
+					f.detections.push_back(d.name + (d.version.empty() ? "" : " " + d.version));
+					f.technologies.push_back({d.name, d.version, d.category});
+				}
 			}
 			const Interest in = score_service(s);
 			f.score = in.score;
