@@ -37,6 +37,37 @@ services:
       target: planner
     profiles: ["tools"]
 
+  # Compares and follows saved runs:
+  #   docker compose run --rm differ --store /data diff previous latest
+  #   docker compose run --rm differ --store /data track
+  differ:
+    build:
+      context: .
+      target: differ
+    volumes:
+      - results:/data:ro
+    profiles: ["tools"]
+
+  # Looks at web services (title, headers, cookies, redirects, TLS certificate, favicon)
+  # and detects technologies with the built-in signatures:
+  #   docker compose run --rm http-prober --scope 10.0.0.0/24 --allowed-ports 80,443 http://10.0.0.5
+  # With your own signatures (a directory of JSON files, mounted read-only):
+  #   docker compose run --rm -v $PWD/my-signatures:/sigs:ro http-prober --signatures /sigs ...
+  http-prober:
+    build:
+      context: .
+      target: http-prober
+    profiles: ["tools"]
+
+  # Lists, checks and tests detection signatures:
+  #   docker compose run --rm signatures list --category cms
+  #   docker compose run --rm -v $PWD/my-signatures:/sigs:ro signatures lint /sigs
+  signatures:
+    build:
+      context: .
+      target: signatures
+    profiles: ["tools"]
+
   scheduler:
     build:
       context: .

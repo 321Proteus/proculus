@@ -5,7 +5,7 @@
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build pkg-config \
-        libexpat1-dev libpq-dev libsodium-dev nlohmann-json3-dev \
+        libexpat1-dev libpq-dev libsodium-dev nlohmann-json3-dev libssl-dev libpcre2-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
@@ -40,6 +40,25 @@ FROM runtime-base AS exporter
 COPY --from=build /src/build/services/exporter/exporter /usr/local/bin/exporter
 USER proculus
 ENTRYPOINT ["exporter"]
+
+FROM runtime-base AS differ
+COPY --from=build /src/build/services/differ/differ /usr/local/bin/differ
+USER proculus
+ENTRYPOINT ["differ"]
+
+FROM runtime-base AS http-prober
+RUN apt-get update && apt-get install -y --no-install-recommends libssl3 libpcre2-8-0 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/build/services/http-prober/http-prober /usr/local/bin/http-prober
+USER proculus
+ENTRYPOINT ["http-prober"]
+
+FROM runtime-base AS signatures
+RUN apt-get update && apt-get install -y --no-install-recommends libpcre2-8-0 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/build/services/signatures/signatures /usr/local/bin/signatures
+USER proculus
+ENTRYPOINT ["signatures"]
 
 FROM runtime-base AS scheduler
 COPY --from=build /src/build/services/scheduler/scheduler /usr/local/bin/scheduler

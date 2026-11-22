@@ -1,0 +1,812 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "hikvision",
+      "name": "Hikvision camera / recorder",
+      "category": "iot",
+      "tags": [
+        "camera"
+      ],
+      "interest": 4,
+      "description": "Network cameras are often exposed with default credentials and old firmware.",
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^(DNVRS-Webs|App-webs)"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/doc/page/login.asp"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bHikvision\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "server",
+          "evidence": {
+            "header:server": "DNVRS-Webs"
+          }
+        },
+        {
+          "name": "login page",
+          "evidence": {
+            "body": "<script src=\"/doc/page/login.asp\">"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Hikvision Digital Technology"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "dahua",
+      "name": "Dahua camera / recorder",
+      "category": "iot",
+      "tags": [
+        "camera"
+      ],
+      "interest": 4,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/RPC2_Login"
+          }
+        },
+        {
+          "weight": 0.75,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^WEB SERVICE$"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "Dahua"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "rpc login",
+          "evidence": {
+            "body": "<script>var url='/RPC2_Login'</script>"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Dahua WEB SERVICE"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Camera"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "axis-camera",
+      "name": "Axis network camera",
+      "category": "iot",
+      "tags": [
+        "camera"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bAXIS [A-Z0-9-]+"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/axis-cgi/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "AXIS P3245-V Network Camera"
+          }
+        },
+        {
+          "name": "cgi",
+          "evidence": {
+            "body": "<img src=\"/axis-cgi/mjpg/video.cgi\">"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Camera"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "routeros",
+      "name": "MikroTik RouterOS",
+      "category": "iot",
+      "tags": [
+        "router"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^RouterOS router configuration page"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "mikrotik"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "RouterOS router configuration page"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Router"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "openwrt-luci",
+      "name": "OpenWrt LuCI",
+      "category": "iot",
+      "tags": [
+        "router"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/luci-static/"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bLuCI\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "assets",
+          "evidence": {
+            "body": "<link href=\"/luci-static/bootstrap/cascade.css\">"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "OpenWrt - LuCI"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "tp-link",
+      "name": "TP-Link device",
+      "category": "iot",
+      "tags": [
+        "router"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:www-authenticate",
+            "op": "contains",
+            "value": "TP-LINK"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^TP-LINK"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "realm",
+          "evidence": {
+            "header:www-authenticate": "Basic realm=\"TP-LINK Wireless N Router WR841N\""
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "TP-LINK Wireless N Router"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Router"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "netgear",
+      "name": "NETGEAR device",
+      "category": "iot",
+      "tags": [
+        "router"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:www-authenticate",
+            "op": "contains",
+            "value": "NETGEAR"
+          }
+        },
+        {
+          "weight": 0.75,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^NETGEAR"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "realm",
+          "evidence": {
+            "header:www-authenticate": "Basic realm=\"NETGEAR R7000\""
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Router"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "ubiquiti-unifi",
+      "name": "Ubiquiti UniFi",
+      "category": "iot",
+      "tags": [
+        "network"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^UniFi"
+          }
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/manage/angular/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "UniFi Network"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Network"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "synology-dsm",
+      "name": "Synology DiskStation",
+      "category": "iot",
+      "tags": [
+        "nas"
+      ],
+      "interest": 3,
+      "threshold": 0.5,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Synology (DiskStation|RackStation)"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "SYNO."
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Synology DiskStation"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "NAS"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "qnap",
+      "name": "QNAP NAS",
+      "category": "iot",
+      "tags": [
+        "nas"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "QNAP"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/cgi-bin/authLogin.cgi"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "QNAP Turbo NAS"
+          }
+        },
+        {
+          "name": "login",
+          "evidence": {
+            "body": "<form action=\"/cgi-bin/authLogin.cgi\">"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "NAS"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "printer-hp",
+      "name": "HP printer",
+      "category": "iot",
+      "tags": [
+        "printer"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^(HP-ChaiSOE|HP HTTP Server)"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bHP (Color )?(LaserJet|OfficeJet|DeskJet|ENVY|PageWide)\\b"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "server",
+          "evidence": {
+            "header:server": "HP-ChaiSOE/1.0"
+          }
+        },
+        {
+          "name": "title",
+          "evidence": {
+            "title": "HP Color LaserJet Pro M454dw"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Printer"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "cups",
+      "name": "CUPS print server",
+      "category": "iot",
+      "tags": [
+        "printer"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^CUPS/"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Home - CUPS"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "CUPS/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "server",
+          "evidence": {
+            "header:server": "CUPS/2.4 IPP/2.1"
+          },
+          "version": "2.4"
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "printer-web-ui",
+      "name": "Printer / MFP web interface",
+      "category": "iot",
+      "tags": [
+        "printer"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.75,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "(Web Image Monitor|CentreWare|Embedded Web Server|EpsonNet|Brother .{0,40}Web|Remote UI)"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "ricoh",
+          "evidence": {
+            "title": "Web Image Monitor"
+          }
+        },
+        {
+          "name": "xerox",
+          "evidence": {
+            "title": "Xerox CentreWare Internet Services"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Home"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "apc-ups",
+      "name": "APC UPS management card",
+      "category": "iot",
+      "tags": [
+        "power"
+      ],
+      "interest": 3,
+      "threshold": 0.7,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "(^APC \\||Network Management Card)"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:www-authenticate",
+            "op": "contains",
+            "value": "APC"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "APC | Network Management Card"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Power"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "pihole",
+      "name": "Pi-hole",
+      "category": "iot",
+      "tags": [
+        "dns"
+      ],
+      "interest": 2,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Pi-hole"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Pi-hole Admin"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "DNS"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "home-assistant",
+      "name": "Home Assistant",
+      "category": "iot",
+      "tags": [
+        "home-automation"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Home Assistant"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "Home Assistant"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Home"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "octoprint",
+      "name": "OctoPrint",
+      "category": "iot",
+      "tags": [
+        "3d-printer"
+      ],
+      "interest": 3,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^OctoPrint"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "title",
+          "evidence": {
+            "title": "OctoPrint Login"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Print"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "embedded-http-server",
+      "name": "Embedded device web server",
+      "category": "iot",
+      "tags": [
+        "embedded"
+      ],
+      "interest": 2,
+      "description": "The kind of web server shipped in routers, cameras and other appliances; often old and unpatched.",
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^(GoAhead-Webs|Boa/|mini_httpd|thttpd|uhttpd|Mongoose|RomPager|Allegro-Software-RomPager|micro_httpd|Embedthis-Appweb|Virata-EmWeb)"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "goahead",
+          "evidence": {
+            "header:server": "GoAhead-Webs"
+          }
+        },
+        {
+          "name": "rompager",
+          "evidence": {
+            "header:server": "RomPager/4.07 UPnP/1.0"
+          }
+        },
+        {
+          "name": "boa",
+          "evidence": {
+            "header:server": "Boa/0.94.14rc21"
+          }
+        },
+        {
+          "name": "nginx",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}

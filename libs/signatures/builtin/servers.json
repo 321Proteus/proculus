@@ -1,0 +1,820 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "nginx",
+      "name": "nginx",
+      "category": "server",
+      "tags": [
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^nginx(/|$| )"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "nginx/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "nginx/1.24.0 (Ubuntu)"
+          },
+          "version": "1.24.0"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "version hidden",
+          "evidence": {
+            "header:server": "nginx"
+          }
+        },
+        {
+          "name": "openresty is separate",
+          "evidence": {
+            "header:server": "openresty/1.21.4.1"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "apache-httpd",
+      "name": "Apache HTTP Server",
+      "category": "server",
+      "tags": [
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Apache(?![-A-Za-z])"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "Apache/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Apache/2.4.58 (Ubuntu)"
+          },
+          "version": "2.4.58"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        },
+        {
+          "name": "version hidden",
+          "evidence": {
+            "header:server": "Apache"
+          }
+        },
+        {
+          "name": "Tomcat's connector",
+          "evidence": {
+            "header:server": "Apache-Coyote/1.1"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "microsoft-iis",
+      "name": "Microsoft IIS",
+      "category": "server",
+      "tags": [
+        "windows",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Microsoft-IIS/"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "Microsoft-IIS/([0-9.]+)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Microsoft-IIS/10.0"
+          },
+          "version": "10.0"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "microsoft-httpapi",
+      "name": "Microsoft HTTPAPI (Windows service)",
+      "category": "server",
+      "tags": [
+        "windows",
+        "web-server"
+      ],
+      "description": "HTTP.sys fronting a Windows service (WinRM, SSDP, ...), not a normal website.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Microsoft-HTTPAPI/"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "Microsoft-HTTPAPI/([0-9.]+)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Microsoft-HTTPAPI/2.0"
+          },
+          "version": "2.0"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "lighttpd",
+      "name": "lighttpd",
+      "category": "server",
+      "tags": [
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^lighttpd(/|$)"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "lighttpd/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "lighttpd/1.4.69"
+          },
+          "version": "1.4.69"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "caddy",
+      "name": "Caddy",
+      "category": "server",
+      "tags": [
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Caddy"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Caddy"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "litespeed",
+      "name": "LiteSpeed",
+      "category": "server",
+      "tags": [
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^(Open)?LiteSpeed"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "LiteSpeed"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "openresty",
+      "name": "OpenResty",
+      "category": "server",
+      "tags": [
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^openresty"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "openresty/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "openresty/1.21.4.1"
+          },
+          "version": "1.21.4.1"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "envoy",
+      "name": "Envoy proxy",
+      "category": "server",
+      "tags": [
+        "proxy",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^envoy"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "envoy"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "gunicorn",
+      "name": "Gunicorn",
+      "category": "server",
+      "tags": [
+        "python",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^gunicorn(/|$)"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "gunicorn/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "gunicorn/21.2.0"
+          },
+          "version": "21.2.0"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "uvicorn",
+      "name": "Uvicorn",
+      "category": "server",
+      "tags": [
+        "python",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^uvicorn"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "uvicorn"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "kestrel",
+      "name": "Kestrel (ASP.NET Core)",
+      "category": "server",
+      "tags": [
+        "dotnet",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Kestrel"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Kestrel"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "jetty",
+      "name": "Eclipse Jetty",
+      "category": "server",
+      "tags": [
+        "java",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Jetty(\\(|/)"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "Jetty\\(([0-9][0-9A-Za-z.]*)\\)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Jetty(9.4.53.v20231009)"
+          },
+          "version": "9.4.53.v20231009"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "awselb",
+      "name": "AWS Elastic Load Balancer",
+      "category": "server",
+      "tags": [
+        "proxy",
+        "cloud",
+        "web-server"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^awselb"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "awselb/2.0"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "squid",
+      "name": "Squid proxy",
+      "category": "server",
+      "tags": [
+        "proxy",
+        "web-server"
+      ],
+      "interest": 2,
+      "description": "A forward proxy answering on a web port.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^squid"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "squid/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "squid/5.7"
+          },
+          "version": "5.7"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "werkzeug-dev-server",
+      "name": "Werkzeug development server",
+      "category": "server",
+      "tags": [
+        "python",
+        "dev-server",
+        "web-server"
+      ],
+      "interest": 2,
+      "description": "Flask's built-in development server is not meant to face a network.",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Werkzeug(/|$)"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:server",
+        "regex": "Werkzeug/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "Werkzeug/3.0.1 Python/3.11.6"
+          },
+          "version": "3.0.1"
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "python-simple-http",
+      "name": "Python built-in HTTP server",
+      "category": "server",
+      "tags": [
+        "python",
+        "dev-server",
+        "web-server"
+      ],
+      "interest": 2,
+      "description": "Usually a developer sharing a directory (python -m http.server).",
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^(SimpleHTTP|BaseHTTP)"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "typical header",
+          "evidence": {
+            "header:server": "SimpleHTTP/0.6 Python/3.11.6"
+          }
+        },
+        {
+          "name": "another server",
+          "evidence": {
+            "header:server": "SomethingElse/1.0"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "category": "server",
+      "tags": [
+        "cdn",
+        "proxy"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^cloudflare$"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:cf-ray",
+            "op": "exists"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "by header",
+          "evidence": {
+            "header:server": "cloudflare"
+          }
+        },
+        {
+          "name": "by ray id",
+          "evidence": {
+            "header:cf-ray": "8a1b2c3d4e5f6789-WAW"
+          }
+        },
+        {
+          "name": "others",
+          "evidence": {
+            "header:server": "nginx"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "varnish",
+      "name": "Varnish cache",
+      "category": "server",
+      "tags": [
+        "cache",
+        "proxy"
+      ],
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-varnish",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:via",
+            "op": "contains",
+            "value": "varnish"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "x-varnish",
+          "evidence": {
+            "header:x-varnish": "32770 32771"
+          }
+        },
+        {
+          "name": "via",
+          "evidence": {
+            "header:via": "1.1 varnish (Varnish/6.0)"
+          }
+        },
+        {
+          "name": "no hints",
+          "evidence": {
+            "header:via": "1.1 proxy"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "apache-tomcat",
+      "name": "Apache Tomcat",
+      "category": "server",
+      "tags": [
+        "java",
+        "servlet-container"
+      ],
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "header:server",
+            "op": "regex",
+            "value": "^Apache-Coyote"
+          },
+          "label": "connector banner"
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "^Apache Tomcat/[0-9]"
+          }
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "Apache Tomcat/[0-9][0-9.]*"
+          }
+        }
+      ],
+      "version": {
+        "field": "body",
+        "regex": "Apache Tomcat/([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "default page",
+          "evidence": {
+            "title": "Apache Tomcat/9.0.65",
+            "body": "<h3>Apache Tomcat/9.0.65</h3>"
+          },
+          "version": "9.0.65"
+        },
+        {
+          "name": "old connector",
+          "evidence": {
+            "header:server": "Apache-Coyote/1.1"
+          }
+        },
+        {
+          "name": "apache httpd",
+          "evidence": {
+            "header:server": "Apache/2.4.58"
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}

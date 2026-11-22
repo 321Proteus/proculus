@@ -1,0 +1,917 @@
+{
+  "format": 1,
+  "signatures": [
+    {
+      "id": "wordpress",
+      "name": "WordPress",
+      "category": "cms",
+      "tags": [
+        "php",
+        "blog"
+      ],
+      "interest": 1,
+      "signals": [
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/wp-content/"
+          },
+          "label": "theme/plugin files"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']WordPress"
+          },
+          "label": "generator tag"
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:link",
+            "op": "contains",
+            "value": "https://api.w.org/"
+          },
+          "label": "REST API link"
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "regex",
+            "value": "^(wordpress_|wp-settings-|wordpress_test_cookie)"
+          },
+          "label": "WordPress cookie"
+        },
+        {
+          "weight": 0.95,
+          "match": {
+            "all": [
+              {
+                "field": "path:/wp-login.php:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/wp-login.php:body",
+                "op": "contains",
+                "value": "wp-submit"
+              }
+            ]
+          },
+          "label": "login page"
+        }
+      ],
+      "version": {
+        "field": "body",
+        "regex": "content=[\\\"']WordPress ([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"WordPress 6.4.2\" />"
+          },
+          "version": "6.4.2"
+        },
+        {
+          "name": "login page",
+          "evidence": {
+            "path:/wp-login.php:status": 200,
+            "path:/wp-login.php:body": "<input name=\"wp-submit\">"
+          }
+        },
+        {
+          "name": "theme files",
+          "evidence": {
+            "body": "<link href=\"/wp-content/themes/x/style.css\">",
+            "cookie": [
+              "wordpress_test_cookie"
+            ]
+          }
+        },
+        {
+          "name": "plain",
+          "evidence": {
+            "body": "<html></html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "drupal",
+      "name": "Drupal",
+      "category": "cms",
+      "tags": [
+        "php"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-generator",
+            "op": "regex",
+            "value": "^Drupal [0-9]"
+          },
+          "label": "X-Generator"
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "header:x-drupal-cache",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Drupal.settings"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/sites/default/files/"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']Drupal"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:x-generator",
+        "regex": "Drupal ([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-generator": "Drupal 10 (https://www.drupal.org)"
+          },
+          "version": "10"
+        },
+        {
+          "name": "cache header",
+          "evidence": {
+            "header:x-drupal-cache": "HIT"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": "<html></html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "joomla",
+      "name": "Joomla",
+      "category": "cms",
+      "tags": [
+        "php"
+      ],
+      "interest": 1,
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']Joomla"
+          }
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "all": [
+              {
+                "field": "path:/administrator/:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/administrator/:body",
+                "op": "contains",
+                "value": "Joomla"
+              }
+            ]
+          },
+          "label": "administrator login"
+        },
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/media/jui/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"Joomla! - Open Source Content Management\" />"
+          }
+        },
+        {
+          "name": "admin",
+          "evidence": {
+            "path:/administrator/:status": 200,
+            "path:/administrator/:body": "Joomla! Administration Login"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "typo3",
+      "name": "TYPO3",
+      "category": "cms",
+      "tags": [
+        "php"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']TYPO3"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/typo3temp/"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/typo3conf/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"TYPO3 CMS\" />"
+          }
+        },
+        {
+          "name": "temp files",
+          "evidence": {
+            "body": "<img src=\"/typo3temp/assets/x.png\">"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": "<html></html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "magento",
+      "name": "Magento",
+      "category": "cms",
+      "tags": [
+        "php",
+        "ecommerce"
+      ],
+      "signals": [
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/skin/frontend/"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Mage.Cookies"
+          }
+        },
+        {
+          "weight": 0.3,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "frontend"
+          }
+        },
+        {
+          "weight": 0.75,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/static/frontend/Magento/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "skin path",
+          "evidence": {
+            "body": "<link href=\"/skin/frontend/base/default/css/x.css\">"
+          }
+        },
+        {
+          "name": "m2 static",
+          "evidence": {
+            "body": "<script src=\"/static/frontend/Magento/luma/en_US/x.js\">"
+          }
+        },
+        {
+          "name": "cookie alone",
+          "evidence": {
+            "cookie": [
+              "frontend"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "prestashop",
+      "name": "PrestaShop",
+      "category": "cms",
+      "tags": [
+        "php",
+        "ecommerce"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']PrestaShop"
+          }
+        },
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "prefix",
+            "value": "PrestaShop-"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"PrestaShop\">"
+          }
+        },
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "PrestaShop-a1b2c3"
+            ]
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "moodle",
+      "name": "Moodle",
+      "category": "cms",
+      "tags": [
+        "php",
+        "lms",
+        "education"
+      ],
+      "interest": 1,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "MoodleSession"
+          }
+        },
+        {
+          "weight": 0.85,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "M.cfg"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/theme/yui_combo.php"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "all": [
+              {
+                "field": "path:/login/index.php:status",
+                "op": "equals",
+                "value": [
+                  200
+                ]
+              },
+              {
+                "field": "path:/login/index.php:body",
+                "op": "contains",
+                "value": "moodle"
+              }
+            ]
+          },
+          "label": "login page"
+        }
+      ],
+      "examples": [
+        {
+          "name": "session cookie",
+          "evidence": {
+            "cookie": [
+              "MoodleSession"
+            ]
+          }
+        },
+        {
+          "name": "config object",
+          "evidence": {
+            "body": "<script>var M = {}; M.cfg = {\"wwwroot\":\"https://x\"}</script>"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": "<html></html>"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "mediawiki",
+      "name": "MediaWiki",
+      "category": "cms",
+      "tags": [
+        "php",
+        "wiki"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']MediaWiki"
+          }
+        },
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/load.php?"
+          }
+        }
+      ],
+      "version": {
+        "field": "body",
+        "regex": "content=[\\\"']MediaWiki ([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"MediaWiki 1.41.0\"/>"
+          },
+          "version": "1.41.0"
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "confluence",
+      "name": "Atlassian Confluence",
+      "category": "cms",
+      "tags": [
+        "java",
+        "wiki"
+      ],
+      "interest": 1,
+      "threshold": 0.6,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:x-confluence-request-time",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "ajs-confluence"
+          }
+        },
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "title",
+            "op": "contains",
+            "value": "Confluence"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:x-confluence-request-time": "123"
+          }
+        },
+        {
+          "name": "title + meta",
+          "evidence": {
+            "title": "Log in - Confluence",
+            "body": "<meta name=\"ajs-confluence\">"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "title": "Home"
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "jira",
+      "name": "Atlassian Jira",
+      "category": "cms",
+      "tags": [
+        "java",
+        "issue-tracker"
+      ],
+      "interest": 2,
+      "threshold": 0.7,
+      "signals": [
+        {
+          "weight": 0.6,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "atlassian.xsrf.token"
+          }
+        },
+        {
+          "weight": 0.5,
+          "match": {
+            "field": "title",
+            "op": "regex",
+            "value": "\\bJira\\b"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "ajs-version-number"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie and title",
+          "evidence": {
+            "cookie": [
+              "atlassian.xsrf.token"
+            ],
+            "title": "System Dashboard - Jira"
+          }
+        },
+        {
+          "name": "meta",
+          "evidence": {
+            "body": "<meta name=\"ajs-version-number\" content=\"9.4\">"
+          }
+        },
+        {
+          "name": "cookie alone",
+          "evidence": {
+            "cookie": [
+              "atlassian.xsrf.token"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "ghost",
+      "name": "Ghost",
+      "category": "cms",
+      "tags": [
+        "nodejs",
+        "blog"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']Ghost"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"Ghost 5.75\" />"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "dokuwiki",
+      "name": "DokuWiki",
+      "category": "cms",
+      "tags": [
+        "php",
+        "wiki"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "body",
+            "op": "regex",
+            "value": "<meta[^>]+name=[\\\"']generator[\\\"'][^>]+content=[\\\"']DokuWiki"
+          }
+        },
+        {
+          "weight": 0.8,
+          "match": {
+            "field": "cookie",
+            "op": "prefix",
+            "value": "DokuWiki"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "generator",
+          "evidence": {
+            "body": "<meta name=\"generator\" content=\"DokuWiki\" />"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "sharepoint",
+      "name": "Microsoft SharePoint",
+      "category": "cms",
+      "tags": [
+        "dotnet"
+      ],
+      "interest": 1,
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:microsoftsharepointteamservices",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "_layouts/15/"
+          }
+        }
+      ],
+      "version": {
+        "field": "header:microsoftsharepointteamservices",
+        "regex": "([0-9][0-9.]*)"
+      },
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:microsoftsharepointteamservices": "16.0.0.10337"
+          },
+          "version": "16.0.0.10337"
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "liferay",
+      "name": "Liferay Portal",
+      "category": "cms",
+      "tags": [
+        "java",
+        "portal"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "header:liferay-portal",
+            "op": "exists"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "Liferay.ThemeDisplay"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "header",
+          "evidence": {
+            "header:liferay-portal": "Liferay Community Edition Portal 7.4"
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "bitrix",
+      "name": "1C-Bitrix",
+      "category": "cms",
+      "tags": [
+        "php"
+      ],
+      "signals": [
+        {
+          "weight": 0.95,
+          "match": {
+            "field": "cookie",
+            "op": "prefix",
+            "value": "BITRIX_SM_"
+          }
+        },
+        {
+          "weight": 0.7,
+          "match": {
+            "field": "body",
+            "op": "contains",
+            "value": "/bitrix/"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "BITRIX_SM_GUEST_ID"
+            ]
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "body": ""
+          },
+          "expect": "no-match"
+        }
+      ]
+    },
+    {
+      "id": "opencart",
+      "name": "OpenCart",
+      "category": "cms",
+      "tags": [
+        "php",
+        "ecommerce"
+      ],
+      "signals": [
+        {
+          "weight": 0.9,
+          "match": {
+            "field": "cookie",
+            "op": "equals",
+            "value": "OCSESSID"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "name": "cookie",
+          "evidence": {
+            "cookie": [
+              "OCSESSID"
+            ]
+          }
+        },
+        {
+          "name": "none",
+          "evidence": {
+            "cookie": [
+              "x"
+            ]
+          },
+          "expect": "no-match"
+        }
+      ]
+    }
+  ]
+}
