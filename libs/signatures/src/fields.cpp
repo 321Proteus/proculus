@@ -68,6 +68,8 @@ bool valid_header_name(const std::string& n) {
 
 } // namespace
 
+const std::map<std::string, FieldType>& known_fields() { return static_fields(); }
+
 bool valid_probe_path(const std::string& path) {
 	if (path.size() < 1 || path.size() > 200 || path[0] != '/') return false;
 	for (unsigned char c : path)

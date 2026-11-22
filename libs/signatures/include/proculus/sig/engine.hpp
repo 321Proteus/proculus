@@ -36,6 +36,8 @@ std::vector<Detection> evaluate(const SignatureSet& set, const Evidence& evidenc
 // Runs the built-in examples of every enabled signature; returns one message
 // per failure (empty = all good).
 std::vector<std::string> run_examples(const SignatureSet& set);
+// The same for one signature (also when it is disabled).
+std::vector<std::string> run_examples(const Signature& sig);
 
 } // namespace proculus::sig
 

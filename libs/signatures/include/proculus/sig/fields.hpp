@@ -21,6 +21,7 @@
 //
 // A list matches if any element matches.
 
+#include <map>
 #include <optional>
 #include <string>
 
@@ -33,6 +34,9 @@ enum class Op { Equals, Contains, Prefix, Suffix, Regex, Exists, Gt, Ge, Lt, Le 
 const char* to_string(Op op);
 std::optional<Op> parse_op(const std::string& name);
 const char* to_string(FieldType t);
+
+// The fixed fields (not header:/path: ones), by name.
+const std::map<std::string, FieldType>& known_fields();
 
 // The type of `field`, or nullopt with `error` set if there is no such field or
 // a dynamic field is malformed.

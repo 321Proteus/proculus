@@ -236,18 +236,24 @@ std::vector<Detection> evaluate(const SignatureSet& set, const Evidence& ev, Eva
 	return out;
 }
 
+std::vector<std::string> run_examples(const Signature& s) {
+	std::vector<std::string> failures;
+	for (const Example& e : s.examples) {
+		const auto d = evaluate_signature(s, e.evidence);
+		const std::string label = s.id + ": example \"" + e.name + "\"";
+		if (e.expect_match && !d) failures.push_back(label + ": expected a detection, got none");
+		else if (!e.expect_match && d) failures.push_back(label + ": expected no detection, got one (confidence " + number_text(std::round(d->confidence * 100) / 100) + ")");
+		else if (e.expect_match && !e.expect_version.empty() && d->version != e.expect_version)
+			failures.push_back(label + ": expected version \"" + e.expect_version + "\", got \"" + d->version + "\"");
+	}
+	return failures;
+}
+
 std::vector<std::string> run_examples(const SignatureSet& set) {
 	std::vector<std::string> failures;
 	for (const Signature& s : set.all()) {
 		if (!s.enabled) continue;
-		for (const Example& e : s.examples) {
-			const auto d = evaluate_signature(s, e.evidence);
-			const std::string label = s.id + ": example \"" + e.name + "\"";
-			if (e.expect_match && !d) failures.push_back(label + ": expected a detection, got none");
-			else if (!e.expect_match && d) failures.push_back(label + ": expected no detection, got one (confidence " + number_text(std::round(d->confidence * 100) / 100) + ")");
-			else if (e.expect_match && !e.expect_version.empty() && d->version != e.expect_version)
-				failures.push_back(label + ": expected version \"" + e.expect_version + "\", got \"" + d->version + "\"");
-		}
+		for (std::string& f : run_examples(s)) failures.push_back(std::move(f));
 	}
 	return failures;
 }
