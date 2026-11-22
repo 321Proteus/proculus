@@ -18,6 +18,8 @@
 // port gates). The controller keeps its progress and a short log for the UI.
 
 #include <deque>
+#include <functional>
+#include <optional>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -66,6 +68,8 @@ struct ScanPolicy {
 
 // From the UI's JSON; ApiError(400) for anything malformed. Unknown keys are refused.
 ScanRequest parse_scan_request(const Json& body);
+// The same fields as parse_scan_request reads.
+Json scan_request_json(const ScanRequest& request);
 
 class ScanController {
 public:
@@ -97,9 +101,16 @@ public:
 	// What a scan of this request would involve (validates it too); scans nothing.
 	Json plan(const ScanRequest& request) const;
 	// Throws ApiError: 403 scans disabled, 400 invalid request, 409 a scan is already running.
-	void start(const ScanRequest& request);
+	// `window` (a scheduled scan): the round only runs inside it, pauses when it closes and
+	// resumes in the next one (the scan keeps the controller busy meanwhile). `origin` says who
+	// asked ("" a person, "schedule:ID" the scheduler); it is handed to the finish callback.
+	void start(const ScanRequest& request, std::optional<Schedule> window = std::nullopt, const std::string& origin = "");
 	// Asks a running scan to stop; its round is not saved. No effect when idle.
 	void stop();
+	// Called on the scan's thread when a scan has ended (finished, failed or stopped), while it still
+	// counts as running, so a new scan can not start before it returns. Keep it quick. `result` is
+	// what status()["last"] holds: {ok, message, run_id, ...}.
+	void set_on_finished(std::function<void(const std::string& origin, const Json& result)> callback);
 	// Waits until no scan is running (tests).
 	void wait_idle();
 

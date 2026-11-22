@@ -227,6 +227,8 @@ ScanRequest parse_scan_request(const Json& body) {
 	return r;
 }
 
+Json scan_request_json(const ScanRequest& r) { return request_json(r); }
+
 struct ScanController::Impl {
 	ScanPolicy policy; // guarded by m (an administrator can change it while requests are validated)
 	std::filesystem::path persist_file;
@@ -248,6 +250,8 @@ struct ScanController::Impl {
 	TimePoint started;
 	ScanRequest current;
 	Json last = nullptr;
+	std::string origin;
+	std::function<void(const std::string&, const Json&)> on_finished;
 
 	RunnerConfig validate(const ScanRequest& r) const { return validate(r, snapshot()); }
 	RunnerConfig validate(const ScanRequest& r, const ScanPolicy& policy) const {
@@ -340,10 +344,23 @@ struct ScanController::Impl {
 		} catch (const std::exception& e) {
 			result = {{"ok", false}, {"message", std::string("error: ") + e.what()}};
 		}
+		std::function<void(const std::string&, const Json&)> callback;
+		std::string who;
+		{
+			std::lock_guard<std::mutex> l(m);
+			result["finished"] = format_time(std::chrono::system_clock::now());
+			last = result;
+			runner = nullptr;
+			callback = on_finished;
+			who = origin;
+		}
+		if (callback) {
+			try {
+				callback(who, result); // still "running": nothing else can start before this returns
+			} catch (...) {
+			}
+		}
 		std::lock_guard<std::mutex> l(m);
-		result["finished"] = format_time(std::chrono::system_clock::now());
-		last = std::move(result);
-		runner = nullptr;
 		running = stopping = false;
 		progress.stage = "idle";
 	}
@@ -546,9 +563,15 @@ Json ScanController::plan(const ScanRequest& r) const {
 		{"workers", cfg.workers}, {"rate", cfg.rate}, {"warnings", warnings}};
 }
 
-void ScanController::start(const ScanRequest& r) {
+void ScanController::set_on_finished(std::function<void(const std::string&, const Json&)> callback) {
+	std::lock_guard<std::mutex> l(impl_->m);
+	impl_->on_finished = std::move(callback);
+}
+
+void ScanController::start(const ScanRequest& r, std::optional<Schedule> window, const std::string& origin) {
 	Impl& i = *impl_;
 	RunnerConfig cfg = i.validate(r);
+	cfg.schedule = std::move(window);
 	if (!i.base.make_backend && !executable_found(cfg.nmap_path)) // a real scan (not a test or the simulation) needs nmap
 		throw ApiError(400, "nmap was not found (looked for \"" + cfg.nmap_path + "\" on the PATH). Install nmap (https://nmap.org/download), or start with --scan-nmap PATH; the simulation (--simulate) needs no nmap");
 	std::lock_guard<std::mutex> l(i.m);
@@ -557,6 +580,7 @@ void ScanController::start(const ScanRequest& r) {
 	i.running = true;
 	i.stopping = false;
 	i.current = r;
+	i.origin = origin;
 	i.started = std::chrono::system_clock::now();
 	i.progress = ScanProgress();
 	i.progress.stage = "starting";

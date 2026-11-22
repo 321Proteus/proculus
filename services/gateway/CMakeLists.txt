@@ -1,4 +1,4 @@
-add_library(gateway_core STATIC src/demo.cpp src/api.cpp src/server.cpp src/scan_control.cpp src/token_guard.cpp src/reset_cli.cpp src/export_format.cpp src/simulate.cpp src/signature_store.cpp)
+add_library(gateway_core STATIC src/demo.cpp src/api.cpp src/server.cpp src/scan_control.cpp src/token_guard.cpp src/reset_cli.cpp src/export_format.cpp src/simulate.cpp src/signature_store.cpp src/schedule_store.cpp src/scan_scheduler.cpp)
 target_include_directories(gateway_core PUBLIC src)
 target_include_directories(gateway_core SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/third_party/httplib)
 target_link_libraries(gateway_core PUBLIC planner_core scanner_core scheduler_core proculus_timing proculus_results proculus_insight proculus_web proculus_edits differ_core runner_core)
@@ -33,6 +33,14 @@ if(BUILD_TESTING)
 	add_executable(test_signature_store tests/test_signature_store.cpp)
 	target_link_libraries(test_signature_store PRIVATE gateway_core)
 	add_test(NAME gateway_signature_store COMMAND test_signature_store)
+
+	add_executable(test_schedule_store tests/test_schedule_store.cpp)
+	target_link_libraries(test_schedule_store PRIVATE gateway_core)
+	add_test(NAME gateway_schedule_store COMMAND test_schedule_store)
+
+	add_executable(test_scan_scheduler tests/test_scan_scheduler.cpp)
+	target_link_libraries(test_scan_scheduler PRIVATE gateway_core)
+	add_test(NAME gateway_scan_scheduler COMMAND test_scan_scheduler)
 
 	add_executable(test_simulate tests/test_simulate.cpp)
 	target_link_libraries(test_simulate PRIVATE gateway_core)
