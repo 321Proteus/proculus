@@ -17,6 +17,7 @@
 
 #include "api.hpp"
 #include "scan_control.hpp"
+#include "scan_scheduler.hpp"
 #include "signature_store.hpp"
 #include "proculus/web/auth.hpp"
 #include "token_guard.hpp"
@@ -45,7 +46,9 @@ public:
 	// user, role and audit routes exist. Without it the server behaves as before.
 	// `edits` (optional, must outlive the server) enables user edits of scanned data (data.edit).
 	// `signatures` (optional, must outlive the server) enables the signature routes: reading (data.read), checking and saving custom signatures (config.manage).
-	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr, web::AuthBackend* auth = nullptr, EditStore* edits = nullptr, SignatureStore* signatures = nullptr);
+	// `schedules` (optional, must outlive the server) enables the schedule routes: reading (data.read), adding, changing and deleting (config.manage), running one now (scan.run).
+	// Without login they need the control token, like the other changes.
+	WebServer(const ResultStore& store, ServerConfig config, ScanController* scans = nullptr, web::AuthBackend* auth = nullptr, EditStore* edits = nullptr, SignatureStore* signatures = nullptr, ScanScheduler* schedules = nullptr);
 	~WebServer();
 
 	// Binds and returns the port; throws std::runtime_error if that fails.
@@ -60,6 +63,7 @@ private:
 	Api api_;
 	ScanController* scans_;
 	SignatureStore* signatures_;
+	ScanScheduler* schedules_;
 	TokenGuard guard_;
 	TokenGuard setup_guard_;
 	web::AuthBackend* auth_;

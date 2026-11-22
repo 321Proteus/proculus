@@ -18,6 +18,7 @@ static void test_targets() {
 		assert(!is_proxyable_target(bad));
 	assert(!is_proxyable_target("/api/" + std::string(3000, 'a')));
 	assert(is_postable_path("/api/scan") && is_postable_path("/api/scan/plan") && is_postable_path("/api/scan/stop") && is_postable_path("/api/scan/config") && is_postable_path("/api/signatures") && is_postable_path("/api/signatures/check"));
+	assert(is_postable_path("/api/schedules") && is_postable_path("/api/schedules/update") && is_postable_path("/api/schedules/delete") && is_postable_path("/api/schedules/run") && !is_postable_path("/api/schedules/other"));
 	for (const char* p : {"/api/edits", "/api/edits/clear", "/api/login", "/api/setup", "/api/logout", "/api/users", "/api/users/update", "/api/roles", "/api/roles/delete"}) assert(is_postable_path(p));
 	for (const char* no : {"/api/runs", "/api/scan/", "/api/scan/x", "/api/scans", "/api", "/", "/api/scan/stop/", "/api/audit", "/api/me", "/api/users/", "/api/users/delete", "/api/edits/", "/api/edits/other"}) assert(!is_postable_path(no));
 }

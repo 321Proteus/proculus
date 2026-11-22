@@ -72,6 +72,7 @@ const Rule kRules[] = {
 	{"POST", "/api/edits", "data.edit"}, {"POST", "/api/edits/clear", "data.edit"},
 	{"POST", "/api/scan", "scan.run"}, {"POST", "/api/scan/plan", "scan.run"}, {"POST", "/api/scan/stop", "scan.run"},
 	{"GET", "/api/scan/config", "config.manage"}, {"POST", "/api/scan/config", "config.manage"},
+	{"GET", "/api/schedules", "data.read"}, {"POST", "/api/schedules", "config.manage"}, {"POST", "/api/schedules/update", "config.manage"}, {"POST", "/api/schedules/delete", "config.manage"}, {"POST", "/api/schedules/run", "scan.run"},
 	{"GET", "/api/users", "users.manage"}, {"POST", "/api/users", "users.manage"}, {"POST", "/api/users/update", "users.manage"},
 	{"GET", "/api/roles", "users.manage"}, {"POST", "/api/roles", "users.manage"}, {"POST", "/api/roles/delete", "users.manage"}, {"GET", "/api/audit", "users.manage"},
 };
@@ -116,8 +117,8 @@ std::string str_field(const Json& b, const char* key, size_t max = 200) {
 
 } // namespace
 
-WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth, EditStore* edits, SignatureStore* signatures)
-	: store_(store), config_(std::move(config)), api_(store_, edits), scans_(scans), signatures_(signatures), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
+WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanController* scans, web::AuthBackend* auth, EditStore* edits, SignatureStore* signatures, ScanScheduler* schedules)
+	: store_(store), config_(std::move(config)), api_(store_, edits), scans_(scans), signatures_(signatures), schedules_(schedules), guard_(config_.control_token), setup_guard_(config_.setup_token), auth_(auth), server_(std::make_unique<httplib::Server>()) {
 	httplib::Server& svr = *server_;
 	// Only SO_REUSEADDR (the library's default is SO_REUSEPORT, which lets a second server share a taken port without any error)
 	svr.set_socket_options([](socket_t sock) {
@@ -295,6 +296,79 @@ WebServer::WebServer(const ResultStore& store, ServerConfig config, ScanControll
 	};
 	svr.Post("/api/signatures", [signatures_post](const httplib::Request& req, httplib::Response& res) { signatures_post(req, res, true); });
 	svr.Post("/api/signatures/check", [signatures_post](const httplib::Request& req, httplib::Response& res) { signatures_post(req, res, false); });
+	// ---- schedules: read like the rest; changing needs config.manage and running one now scan.run (with login), or the control token (without)
+	svr.Get("/api/schedules", [this](const httplib::Request&, httplib::Response& res) {
+		if (!schedules_) return send_json(res, 404, {{"error", "schedules are not available on this server"}});
+		api_route(res, [&] {
+			const TimePoint now = std::chrono::system_clock::now();
+			Json list = Json::array();
+			for (const ScanSchedule& s : schedules_->store().list()) {
+				Json j = schedules_->describe(s, now);
+				j["windows"] = ScanScheduler::upcoming(s, now, 3);
+				list.push_back(std::move(j));
+			}
+			return Json{{"now", format_time(now)}, {"enabled", scans_ && scans_->enabled()}, {"schedules", list}};
+		});
+	});
+	auto schedules_post = [this, current_user](const httplib::Request& req, httplib::Response& res, const char* what) {
+		if (!schedules_) return send_json(res, 404, {{"error", "schedules are not available on this server"}});
+		if (!auth_) {
+			switch (guard_.check(req.get_header_value("X-Proculus-Token"))) {
+			case TokenGuard::Result::Ok: break;
+			case TokenGuard::Result::Disabled: return send_json(res, 403, {{"error", "no control token is configured"}});
+			case TokenGuard::Result::Locked: return send_json(res, 429, {{"error", "too many wrong tokens; try again in a minute"}});
+			case TokenGuard::Result::Denied: return send_json(res, 401, {{"error", "wrong or missing control token"}});
+			}
+		}
+		const auto body = json_body(req, res);
+		if (!body) return;
+		std::string detail;
+		api_route(res, [&] {
+			const TimePoint now = std::chrono::system_clock::now();
+			const std::string kind = what;
+			// a request that the current policy would refuse is not accepted into a schedule (it is checked again whenever the schedule runs)
+			auto check_request = [&](const Json& b) {
+				if (!scans_ || !scans_->enabled()) throw ApiError(403, "scans are not enabled on this server");
+				if (b.contains("request")) scans_->plan(parse_scan_request(b["request"]));
+			};
+			auto id_of = [&](const Json& b) { return str_field(b, "id", 20); };
+			ScanSchedule s;
+			if (kind == "add") {
+				check_request(*body);
+				s = schedules_->store().add(*body, now);
+			} else if (kind == "update") {
+				Json fields = *body;
+				const std::string id = id_of(fields);
+				fields.erase("id");
+				check_request(fields);
+				s = schedules_->store().update(id, fields);
+			} else if (kind == "delete") {
+				const std::string id = id_of(*body);
+				const auto old = schedules_->store().get(id);
+				schedules_->store().remove(id);
+				detail = old ? old->name + " (" + id + ")" : id;
+				schedules_->poke();
+				return Json{{"deleted", id}};
+			} else { // run
+				const std::string id = id_of(*body);
+				schedules_->run_now(id, now);
+				s = *schedules_->store().get(id);
+			}
+			detail = s.name + " (" + s.id + ")";
+			schedules_->poke();
+			return schedules_->describe(s, now);
+		});
+		if (auth_ && res.status == 200) {
+			const auto user = current_user(req);
+			const std::string kind = what;
+			auth_->record(user ? &*user : nullptr, kind == "add" ? "schedule added" : kind == "update" ? "schedule changed" : kind == "delete" ? "schedule deleted" : "schedule run by hand", "schedule",
+				clip(detail, 200), req.remote_addr);
+		}
+	};
+	svr.Post("/api/schedules", [schedules_post](const httplib::Request& req, httplib::Response& res) { schedules_post(req, res, "add"); });
+	svr.Post("/api/schedules/update", [schedules_post](const httplib::Request& req, httplib::Response& res) { schedules_post(req, res, "update"); });
+	svr.Post("/api/schedules/delete", [schedules_post](const httplib::Request& req, httplib::Response& res) { schedules_post(req, res, "delete"); });
+	svr.Post("/api/schedules/run", [schedules_post](const httplib::Request& req, httplib::Response& res) { schedules_post(req, res, "run"); });
 	svr.Get("/api/hosts", [this](const httplib::Request&, httplib::Response& res) { api_route(res, [&] { return api_.hosts(); }); });
 
 	// ---- user edits: read like the rest; changing needs data.edit (with login) or the control token (without)

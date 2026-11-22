@@ -31,6 +31,8 @@ public:
 	// Called for what happened to a schedule: ("scheduled scan started", "daily (s1)"), ... For the audit log.
 	void set_event_sink(std::function<void(const std::string& action, const std::string& detail)> sink);
 
+	ScheduleStore& store() const { return store_; }
+
 	// A background thread that looks every `period`.
 	void start(std::chrono::seconds period = std::chrono::seconds(15));
 	void stop();

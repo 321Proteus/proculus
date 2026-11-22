@@ -240,7 +240,16 @@ int serve_command(int argc, char** argv) {
 			if (scans.load_settings(&problem)) std::cerr << "proculus: scan settings loaded from " << scan_config << (scans.enabled() ? " (scans ON)" : " (scans off)") << "\n";
 			else if (!problem.empty()) std::cerr << "proculus: WARNING: ignoring " << scan_config << ": " << problem << "\n";
 		}
-		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get(), &signature_store);
+		// recurring scans: kept next to the scan settings, started by a background thread through the same controller (and so the same policy)
+		ScheduleStore schedule_store(scan_config.empty() ? std::filesystem::path() : std::filesystem::path(scan_config).parent_path() / "schedules.json");
+		{
+			std::string problem;
+			if (schedule_store.load(&problem)) std::cerr << "proculus: " << schedule_store.list().size() << " scan schedule(s) loaded\n";
+			else if (!problem.empty()) std::cerr << "proculus: WARNING: ignoring the schedules file: " << problem << "\n";
+		}
+		ScanScheduler scheduler(schedule_store, scans);
+		if (auth_backend) scheduler.set_event_sink([&](const std::string& action, const std::string& detail) { auth_backend->record(nullptr, action, "schedule", detail, "scheduler"); });
+		WebServer server(store, cfg, &scans, auth_backend.get(), edit_store.get(), &signature_store, &scheduler);
 		const int port = server.bind();
 		std::unique_ptr<UiServer> ui_server;
 		int ui_port = 0;
@@ -250,6 +259,7 @@ int serve_command(int argc, char** argv) {
 			ui_server = std::make_unique<UiServer>(ui);
 			ui_port = ui_server->bind(); // fails (and so does the start) when the port is taken
 		}
+		scheduler.start();
 		g_server = &server;
 		g_ui = ui_server.get();
 		std::signal(SIGINT, on_signal);
@@ -261,6 +271,7 @@ int serve_command(int argc, char** argv) {
 			std::cerr << "proculus: open the UI at  http://" << ui.bind << ":" << ui_port << "/\n";
 		}
 		server.run();
+		scheduler.stop();
 		g_server = nullptr;
 		if (ui_server) ui_server->stop();
 		if (ui_thread.joinable()) ui_thread.join();

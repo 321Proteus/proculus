@@ -10,6 +10,8 @@
 
 #include "proculus/edits/edits.hpp"
 #include "server.hpp"
+#include "scan_scheduler.hpp"
+#include "schedule_store.hpp"
 #include "signature_store.hpp"
 #include "sim_network.hpp"
 
@@ -146,7 +148,9 @@ int main() {
 	cfg.control_token = "unused-when-login-is-on-0123456789"; // login replaces the control token
 	auto edit_store = make_file_edit_store(dir / "edits");
 	SignatureStore sigs(dir / "sigs" / "custom-signatures.json");
-	WebServer server(store, cfg, &scans, &auth, edit_store.get(), &sigs);
+	ScheduleStore schedule_store(dir / "sched" / "schedules.json");
+	ScanScheduler scheduler(schedule_store, scans); // not started: the routes are what is tested here
+	WebServer server(store, cfg, &scans, &auth, edit_store.get(), &sigs, &scheduler);
 	const int port = server.bind();
 	std::thread t([&] { server.run(); });
 	httplib::Client c("127.0.0.1", port);
@@ -245,6 +249,44 @@ int main() {
 		for (const Json& e : Json::parse(c.Get("/api/audit", hdr(admin))->body))
 			if (e["action"] == "scan settings changed" && e["user"] == "ann") logged = true;
 		assert(logged);
+	}
+	{ // schedules: everybody who reads can see them; config.manage changes them, scan.run starts one; every change is audited, nothing outside the policy is accepted
+		const std::string good = R"({"name":"nightly","request":{"targets":["10.20.0.0/24"],"ports":"22,80","rate":50},"window":"22:00-06:00","days":"mon-fri","interval":"24h"})";
+		assert(c.Get("/api/schedules")->status == 401);
+		assert(Json::parse(c.Get("/api/schedules", hdr(viewer))->body)["schedules"].empty());
+		assert(c.Post("/api/schedules", hdr(viewer), good, "application/json")->status == 403 && c.Post("/api/schedules", hdr(manager), good, "application/json")->status == 403);
+		assert(c.Post("/api/schedules", hdr(admin), good, "text/plain")->status == 415);
+		assert(c.Post("/api/schedules", hdr(admin), R"({"name":"x","request":{"targets":["10.99.0.1"]}})", "application/json")->status == 400); // outside the scope
+		assert(c.Post("/api/schedules", hdr(admin), R"({"name":"x","request":{"targets":["10.20.0.1"],"ports":"23"}})", "application/json")->status == 400); // outside the ports
+		assert(c.Post("/api/schedules", hdr(admin), R"({"name":"x","request":{"targets":["10.20.0.1"]},"interval":"1m"})", "application/json")->status == 400);
+		assert(schedule_store.list().empty());
+		auto made = c.Post("/api/schedules", hdr(admin), good, "application/json");
+		assert(made && made->status == 200);
+		const Json created = Json::parse(made->body);
+		assert(created["id"] == "s1" && created["interval"] == "1d" && created["days"] == "mon,tue,wed,thu,fri" && created["next_run"].is_string() && created["running"] == false);
+		const Json listed = Json::parse(c.Get("/api/schedules", hdr(viewer))->body);
+		assert(listed["schedules"].size() == 1 && listed["schedules"][0]["windows"].size() == 3 && listed["enabled"] == true && listed["now"].is_string());
+		assert(fs::exists(dir / "sched" / "schedules.json"));
+		assert(c.Post("/api/schedules/update", hdr(manager), R"({"id":"s1","enabled":false})", "application/json")->status == 403);
+		auto upd = c.Post("/api/schedules/update", hdr(admin), R"({"id":"s1","enabled":false,"interval":"12h"})", "application/json");
+		assert(upd && upd->status == 200 && Json::parse(upd->body)["enabled"] == false && Json::parse(upd->body)["next_run"].is_null() && schedule_store.get("s1")->when.interval == Seconds(43200));
+		assert(c.Post("/api/schedules/update", hdr(admin), R"({"id":"s1","request":{"targets":["10.99.0.1"]}})", "application/json")->status == 400);
+		assert(c.Post("/api/schedules/update", hdr(admin), R"({"id":"s9","enabled":true})", "application/json")->status == 404);
+		assert(c.Post("/api/schedules/update", hdr(admin), R"({"enabled":true})", "application/json")->status == 400);
+		// running it needs scan.run (a manager has it, a viewer does not) and starts the saved request
+		assert(c.Post("/api/schedules/run", hdr(viewer), R"({"id":"s1"})", "application/json")->status == 403);
+		auto ran = c.Post("/api/schedules/run", hdr(manager), R"({"id":"s1"})", "application/json");
+		assert(ran && ran->status == 200 && Json::parse(ran->body)["last"]["status"].get<std::string>() != "");
+		scans.wait_idle();
+		assert(schedule_store.get("s1")->last_status == "ok" && schedule_store.get("s1")->last_run_id > 0 && scan_store.load(schedule_store.get("s1")->last_run_id));
+		assert(c.Post("/api/schedules/run", hdr(manager), R"({"id":"s9"})", "application/json")->status == 404);
+		assert(c.Post("/api/schedules/delete", hdr(manager), R"({"id":"s1"})", "application/json")->status == 403);
+		assert(c.Post("/api/schedules/delete", hdr(admin), R"({"id":"s1"})", "application/json")->status == 200 && schedule_store.list().empty());
+		assert(c.Post("/api/schedules/delete", hdr(admin), R"({"id":"s1"})", "application/json")->status == 404);
+		int logged = 0;
+		for (const Json& e : Json::parse(c.Get("/api/audit", hdr(admin))->body))
+			if (e["entity"] == "schedule" && e["user"] != nullptr) logged++;
+		assert(logged == 4); // added, changed, run by hand, deleted
 	}
 	assert(Json::parse(c.Get("/api/users", hdr(admin))->body).size() == 3);
 	assert(Json::parse(c.Get("/api/roles", hdr(admin))->body).size() == 3);
