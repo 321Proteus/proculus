@@ -52,6 +52,38 @@ docker compose run --rm exporter --store /data list
 docker compose run --rm exporter --store /data show latest --format csv
 ```
 
+## Web UI
+
+Two small services: `gateway serve` is the read-only JSON API over the saved
+runs, and `ui` serves the pages and passes the page's `/api/` requests on to it.
+
+```sh
+./build/services/gateway/gateway --store results --window 22:00-06:00        # make some runs
+./build/services/gateway/gateway serve --store results                        # the API, on 127.0.0.1:8081
+./build/services/ui/ui                                                        # the UI, http://127.0.0.1:8080
+docker compose --profile ui up --build ui                                     # both, in Docker (http://localhost:8080)
+```
+
+A dashboard over the saved runs (Polish or English): size of the latest run and
+what changed since the previous one, services ranked by priority with the
+reasons, detections by category, the most common technologies, and host states
+over time (new, active, flapping, stale, gone). Further views list and filter
+all services, list the runs and compare any two.
+
+The priority (0-100) combines what the signatures found (their own interest,
+scaled by confidence) with what is exposed at all: telnet, databases, remote
+desktop and similar are ranked even when no signature matched.
+
+The UI service holds no data and decides nothing; the gateway will be where
+logins and roles are enforced. The proxy only forwards GET requests to plain
+`/api/...` paths, to the one configured gateway, and only passes back JSON of a
+limited size. There is no login yet, so both services are read-only, listen on
+the loopback interface only, answer only to local host names (`--allow-host NAME`
+adds more, against DNS rebinding), and the pages are sent with a strict
+Content-Security-Policy. Titles and banners come from scanned hosts and are
+never inserted as HTML. For UI development, `ui --web-dir services/ui/web`
+serves the files from disk without a rebuild.
+
 ## Following changes over time
 
 `differ` compares saved runs and follows hosts and services across all of them:
@@ -138,7 +170,11 @@ stored as `name=<redacted>; attributes`.
 - `services/http-prober` – looks at web services: headers, cookies, titles, redirects, TLS certificates, favicon fingerprints
 - `libs/signatures` – detection signatures: loader, matching engine, 125 built-ins
 - `services/signatures` – list, lint, test and try out signatures
-- `services/gateway` – entry point (currently the demo above)
+- `libs/insight` – priority score for services and the dashboard summary
+- `libs/web` – Host-header guard and settings shared by the web-facing services
+- `services/gateway` – the demo above, and `serve`: the read-only JSON API
+- `services/ui` – the web UI: the pages, and a strict proxy to the gateway API
+- `third_party/httplib` – cpp-httplib (single header, MIT) used by the web server
 
 ## Tests
 
